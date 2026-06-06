@@ -25,7 +25,7 @@ import { DeviceParserService } from './device-parser.service';
 import { GeoIpService } from './geo-ip.service';
 import { IpEnrichmentService } from './ip-enrichment.service';
 import { isPrivateOrLoopback } from '../shared/tracking/ip-resolver';
-import { generateVisitorId } from '../common/utils/visitor-id';
+import { fingerprintVisitorId } from '../common/utils/visitor-id';
 
 @Injectable()
 export class ClicksService {
@@ -121,12 +121,7 @@ export class ClicksService {
       ),
     });
 
-    const visitorId = visitor.visitorId || generateVisitorId();
-    const priorVisit = await this.prisma.click.findFirst({
-      where: { campaignId: campaign.id, visitorId },
-      select: { id: true },
-    });
-    const isNewVisitor = !priorVisit;
+    const { visitorId, isNewVisitor } = await this.resolveVisitor(campaign.id, visitor);
 
     await this.prisma.click.create({
       data: {
@@ -200,6 +195,38 @@ export class ClicksService {
     this.ipEnrichment.enrichClickAsync(clickId, ipAddress, userAgent, acceptLanguage);
 
     return { clickId, campaign, visitorId, isNewVisitor };
+  }
+
+  private async resolveVisitor(
+    campaignId: string,
+    visitor: VisitorContext,
+  ): Promise<{ visitorId: string; isNewVisitor: boolean }> {
+    const fingerprint = fingerprintVisitorId(
+      campaignId,
+      visitor.ipAddress,
+      visitor.userAgent,
+    );
+    const visitorId = visitor.visitorId || fingerprint;
+
+    const priorVisit = await this.prisma.click.findFirst({
+      where: {
+        campaignId,
+        OR: [
+          { visitorId },
+          ...(visitor.ipAddress
+            ? [
+                {
+                  ipAddress: visitor.ipAddress,
+                  userAgent: visitor.userAgent || undefined,
+                },
+              ]
+            : []),
+        ],
+      },
+      select: { id: true },
+    });
+
+    return { visitorId, isNewVisitor: !priorVisit };
   }
 
   private getCampaignParamMappings(campaign: {
