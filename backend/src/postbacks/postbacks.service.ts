@@ -4,6 +4,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { MediagoStrategy } from './strategies/mediago.strategy';
 import { FacebookStrategy } from './strategies/facebook.strategy';
 import { GoogleStrategy } from './strategies/google.strategy';
+import { OutbrainStrategy } from './strategies/outbrain.strategy';
 import { PostbackStrategy } from './interfaces/postback-strategy.interface';
 
 @Injectable()
@@ -16,8 +17,9 @@ export class PostbacksService {
     mediago: MediagoStrategy,
     facebook: FacebookStrategy,
     google: GoogleStrategy,
+    outbrain: OutbrainStrategy,
   ) {
-    this.strategies = [mediago, facebook, google];
+    this.strategies = [mediago, facebook, google, outbrain];
   }
 
   async processConversion(conversionId: string): Promise<void> {
@@ -25,7 +27,12 @@ export class PostbacksService {
       where: { id: conversionId },
       include: {
         click: true,
-        campaign: { include: { postbackConfig: true } },
+        campaign: {
+          include: {
+            postbackConfig: true,
+            trafficSourceProfile: true,
+          },
+        },
       },
     });
 
@@ -35,13 +42,22 @@ export class PostbacksService {
     }
 
     const config = conversion.campaign.postbackConfig;
+    const campaignContext = {
+      trafficSourceProfile: conversion.campaign.trafficSourceProfile,
+    };
+
     let allSuccess = true;
     let anySent = false;
 
     for (const strategy of this.strategies) {
-      if (!strategy.canHandle(config)) continue;
+      if (!strategy.canHandle(config, campaignContext)) continue;
 
-      const result = await strategy.send(conversion.click, conversion, config);
+      const result = await strategy.send(
+        conversion.click,
+        conversion,
+        config,
+        campaignContext,
+      );
       anySent = true;
 
       await this.prisma.postbackLog.create({

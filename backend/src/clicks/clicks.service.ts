@@ -8,6 +8,11 @@ import {
   extractRawParams,
 } from '../shared/tracking/params';
 import {
+  type ParamMapping,
+  DEFAULT_PARAM_MAPPINGS,
+  getReportFieldsFromClick,
+} from '../shared/tracking/param-mapping';
+import {
   applyNativeParamFallbacks,
   extractVoluumFields,
 } from '../shared/tracking/voluum-fields';
@@ -70,7 +75,8 @@ export class ClicksService {
     visitor: VisitorContext,
   ) {
     const campaign = await this.findCampaign(identifier);
-    const params = getTrackingParamsFromQuery(query);
+    const mappings = this.getCampaignParamMappings(campaign);
+    const params = getTrackingParamsFromQuery(query, null, mappings);
     const rawParams = extractRawParams(query);
     const voluum = extractVoluumFields(query);
     const customVars = applyNativeParamFallbacks(voluum.customVariables, {
@@ -129,7 +135,9 @@ export class ClicksService {
         affiliateNetworkId: voluum.affiliateNetworkId || campaign.affiliateNetworkId || null,
         trafficSourceId: voluum.trafficSourceId || campaign.trafficSourceId || null,
         trafficSourceName:
-          campaign.trafficSourceName || this.formatTrafficSource(campaign.trafficSource),
+          campaign.trafficSourceName ||
+          campaign.trafficSourceProfile?.name ||
+          this.formatTrafficSource(campaign.trafficSource),
         customVariable1: customVars.cv1 || null,
         customVariable2: customVars.cv2 || null,
         customVariable3: customVars.cv3 || null,
@@ -174,12 +182,22 @@ export class ClicksService {
     return { clickId, campaign };
   }
 
+  private getCampaignParamMappings(campaign: {
+    trafficSourceProfile?: { paramMappings: unknown } | null;
+  }): ParamMapping[] {
+    if (campaign.trafficSourceProfile?.paramMappings) {
+      return campaign.trafficSourceProfile.paramMappings as unknown as ParamMapping[];
+    }
+    return DEFAULT_PARAM_MAPPINGS;
+  }
+
   private async findCampaign(identifier: string) {
     const campaign = await this.prisma.campaign.findFirst({
       where: {
         OR: [{ slug: identifier }, { externalId: identifier }, { id: identifier }],
         active: true,
       },
+      include: { trafficSourceProfile: true },
     });
 
     if (!campaign) {
@@ -221,7 +239,15 @@ export class ClicksService {
       this.prisma.click.findMany({
         where,
         include: {
-          campaign: { select: { name: true, slug: true } },
+          campaign: {
+            select: {
+              name: true,
+              slug: true,
+              trafficSourceProfile: {
+                select: { name: true, slug: true, paramMappings: true },
+              },
+            },
+          },
           conversions: {
             select: {
               id: true,
@@ -241,12 +267,18 @@ export class ClicksService {
     ]);
 
     return {
-      items: items.map((click) => ({
-        ...click,
-        converted: click.conversions.length > 0,
-        conversionStatus: click.conversions[0]?.status || null,
-        isLocalIp: isPrivateOrLoopback(click.ipAddress || undefined),
-      })),
+      items: items.map((click) => {
+        const mappings = click.campaign.trafficSourceProfile?.paramMappings
+          ? (click.campaign.trafficSourceProfile.paramMappings as unknown as ParamMapping[])
+          : DEFAULT_PARAM_MAPPINGS;
+        return {
+          ...click,
+          converted: click.conversions.length > 0,
+          conversionStatus: click.conversions[0]?.status || null,
+          isLocalIp: isPrivateOrLoopback(click.ipAddress || undefined),
+          reportFields: getReportFieldsFromClick(click, mappings),
+        };
+      }),
       total,
     };
   }

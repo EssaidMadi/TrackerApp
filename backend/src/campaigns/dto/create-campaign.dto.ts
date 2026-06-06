@@ -12,8 +12,13 @@ export class CreateCampaignDto {
   @IsString()
   externalId?: string;
 
+  @IsOptional()
   @IsEnum(TrafficSource)
-  trafficSource: TrafficSource;
+  trafficSource?: TrafficSource;
+
+  @IsOptional()
+  @IsString()
+  trafficSourceProfileId?: string;
 
   @IsOptional()
   @IsEnum(TrackingMode)
@@ -87,6 +92,10 @@ export class UpdateCampaignDto {
   @IsOptional()
   @IsEnum(TrafficSource)
   trafficSource?: TrafficSource;
+
+  @IsOptional()
+  @IsString()
+  trafficSourceProfileId?: string;
 
   @IsOptional()
   @IsEnum(TrackingMode)

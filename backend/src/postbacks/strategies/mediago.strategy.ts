@@ -1,7 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
-import { Click, Conversion, PostbackConfig } from '@prisma/client';
-import { PostbackResult, PostbackStrategy } from '../interfaces/postback-strategy.interface';
+import { Click, Conversion, ConversionMethod, PostbackConfig } from '@prisma/client';
+import {
+  CampaignPostbackContext,
+  PostbackResult,
+  PostbackStrategy,
+} from '../interfaces/postback-strategy.interface';
 import { httpRequestWithRetry } from '../helpers/facebook-graph-http.helper';
 
 @Injectable()
@@ -12,11 +16,17 @@ export class MediagoStrategy implements PostbackStrategy {
     return 'mediago';
   }
 
-  canHandle(config: PostbackConfig): boolean {
+  canHandle(config: PostbackConfig, campaign?: CampaignPostbackContext): boolean {
+    const method = campaign?.trafficSourceProfile?.conversionMethod;
+    if (method && method !== ConversionMethod.mediago_s2s) return false;
     return config.mediagoEnabled;
   }
 
-  async send(click: Click, conversion: Conversion, config: PostbackConfig): Promise<PostbackResult> {
+  async send(
+    click: Click,
+    conversion: Conversion,
+    config: PostbackConfig,
+  ): Promise<PostbackResult> {
     if (!click.trackingId) {
       return {
         success: false,

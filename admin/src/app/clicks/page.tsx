@@ -161,13 +161,20 @@ export default function ClicksPage() {
                       <tr className="bg-zinc-50/80 border-b border-zinc-100">
                         <td colSpan={8} className="px-5 py-4">
                           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-                            <Detail label="Tracking ID" value={c.trackingId} />
+                            {(c.reportFields?.length
+                              ? c.reportFields.map((f) => (
+                                  <Detail key={f.label} label={f.label} value={f.value} />
+                                ))
+                              : [
+                                  <Detail key="tid" label="Tracking ID" value={c.trackingId} />,
+                                  <Detail key="pub" label="Publisher" value={c.publisherName} />,
+                                  <Detail key="ad" label="Ad ID" value={c.adId} />,
+                                  <Detail key="plat" label="Platform" value={c.platform} />,
+                                ])}
                             <Detail label="OS / Model" value={`${c.os || '—'} / ${c.model || c.brand || '—'}`} />
                             <Detail label="Browser" value={c.browserVersion || c.browser} />
                             <Detail label="City" value={c.city} />
                             <Detail label="ISP" value={c.isp} />
-                            <Detail label="Platform" value={c.platform} />
-                            <Detail label="Ad ID" value={c.adId} />
                             <Detail label="Bot reasons" value={(c.botReasons || []).join(', ')} />
                             <div className="col-span-full">
                               <span className="text-zinc-400">UA: </span>

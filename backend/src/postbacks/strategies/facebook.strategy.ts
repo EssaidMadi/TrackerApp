@@ -1,8 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { ConfigService } from '@nestjs/config';
-import { Click, Conversion, PostbackConfig } from '@prisma/client';
-import { PostbackResult, PostbackStrategy } from '../interfaces/postback-strategy.interface';
+import { Click, Conversion, ConversionMethod, PostbackConfig } from '@prisma/client';
+import {
+  CampaignPostbackContext,
+  PostbackResult,
+  PostbackStrategy,
+} from '../interfaces/postback-strategy.interface';
 import { httpRequestWithRetry } from '../helpers/facebook-graph-http.helper';
 import { sha256 } from '../helpers/hash.helper';
 
@@ -17,7 +21,9 @@ export class FacebookStrategy implements PostbackStrategy {
     return 'facebook';
   }
 
-  canHandle(config: PostbackConfig): boolean {
+  canHandle(config: PostbackConfig, campaign?: CampaignPostbackContext): boolean {
+    const method = campaign?.trafficSourceProfile?.conversionMethod;
+    if (method && method !== ConversionMethod.facebook_capi) return false;
     return config.facebookEnabled && !!config.facebookPixelId;
   }
 

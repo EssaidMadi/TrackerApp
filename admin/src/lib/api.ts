@@ -41,12 +41,39 @@ export interface TrackingDomain {
   _count?: { campaigns: number };
 }
 
+export interface ParamMapping {
+  internalField: string;
+  displayLabel: string;
+  externalKeys: string[];
+  urlMacro?: string;
+  showInReports: boolean;
+  priority?: number;
+}
+
+export interface TrafficSourceProfile {
+  id: string;
+  slug: string;
+  name: string;
+  trackingModeDefault: 'redirect' | 'direct';
+  clickUrlTemplate?: string | null;
+  directAdUrlTemplate?: string | null;
+  paramMappings: ParamMapping[];
+  conversionMethod: string;
+  postbackDefaults?: Record<string, unknown>;
+  setupNote?: string | null;
+  isSystem: boolean;
+  active: boolean;
+  _count?: { campaigns: number };
+}
+
 export interface Campaign {
   id: string;
   externalId?: string;
   name: string;
   slug: string;
   trafficSource: string;
+  trafficSourceProfileId?: string;
+  trafficSourceProfile?: TrafficSourceProfile | null;
   trackingMode: 'redirect' | 'direct';
   destinationUrl: string;
   active: boolean;
@@ -55,7 +82,9 @@ export interface Campaign {
   trackerBaseUrl?: string;
   directAdUrl?: string | null;
   lpScriptSnippet?: string;
-  setupNote?: string;
+  setupNote?: string | null;
+  paramMappings?: ParamMapping[];
+  conversionMethod?: string | null;
   landerName?: string;
   offerName?: string;
   workspaceName?: string;
@@ -141,7 +170,12 @@ export interface Click {
   userAgent?: string;
   referrer?: string;
   createdAt: string;
-  campaign: { name: string; slug: string };
+  campaign: {
+    name: string;
+    slug: string;
+    trafficSourceProfile?: { name: string; slug: string; paramMappings?: ParamMapping[] } | null;
+  };
+  reportFields?: { label: string; value: string }[];
   conversions?: { id: string; status: string; eventType: string }[];
 }
 
@@ -190,11 +224,27 @@ export const trackerApi = {
     api<{ deleted: boolean }>(`/api/domains/${id}`, { method: 'DELETE' }),
   getCampaigns: () => api<Campaign[]>('/api/campaigns'),
   getCampaign: (id: string) => api<Campaign>(`/api/campaigns/${id}`),
+  getTrafficSources: (all?: boolean) =>
+    api<TrafficSourceProfile[]>(`/api/traffic-sources${all ? '?all=1' : ''}`),
+  getTrafficSource: (id: string) => api<TrafficSourceProfile>(`/api/traffic-sources/${id}`),
+  createTrafficSource: (data: Partial<TrafficSourceProfile>) =>
+    api<TrafficSourceProfile>('/api/traffic-sources', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  updateTrafficSource: (id: string, data: Partial<TrafficSourceProfile>) =>
+    api<TrafficSourceProfile>(`/api/traffic-sources/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+  deleteTrafficSource: (id: string) =>
+    api<{ deleted: boolean }>(`/api/traffic-sources/${id}`, { method: 'DELETE' }),
   createCampaign: (data: {
     name: string;
     slug: string;
     externalId?: string;
-    trafficSource: string;
+    trafficSource?: string;
+    trafficSourceProfileId?: string;
     trackingMode?: 'redirect' | 'direct';
     domainId?: string;
     destinationUrl: string;
@@ -205,7 +255,8 @@ export const trackerApi = {
       name: string;
       slug: string;
       externalId: string;
-      trafficSource: string;
+      trafficSource?: string;
+      trafficSourceProfileId?: string;
       trackingMode?: 'redirect' | 'direct';
       domainId?: string;
       destinationUrl: string;

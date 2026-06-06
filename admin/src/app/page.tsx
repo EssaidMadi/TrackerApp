@@ -20,50 +20,12 @@ import {
   Th,
   statusTone,
 } from '@/components/ui';
-import { trackerApi, type Campaign, type TrackingDomain } from '@/lib/api';
-
-function defaultTrackingMode(source: string): 'redirect' | 'direct' {
-  return source === 'facebook' || source === 'google' ? 'direct' : 'redirect';
-}
-
-const SOURCE_HELP: Record<string, { title: string; steps: string[] }> = {
-  mediago: {
-    title: 'Native redirect tracking',
-    steps: [
-      'Put the Click URL in Mediago tracking field',
-      'User clicks ad → tracker records visit → redirects to LP',
-      'Add the LP script on your landing page for conversions',
-    ],
-  },
-  native: {
-    title: 'Native redirect tracking',
-    steps: ['Put the Click URL in your native network', 'Tracker redirects to LP after visit'],
-  },
-  facebook: {
-    title: 'Direct tracking',
-    steps: [
-      'Put LP URL directly in Facebook Ads',
-      'Do NOT use a redirect tracker URL — fbclid is added automatically',
-      'Add LP script in page <head>',
-    ],
-  },
-  google: {
-    title: 'Direct tracking',
-    steps: [
-      'Put LP URL directly in Google Ads',
-      'Do NOT use a redirect tracker URL — gclid is added automatically',
-      'Add LP script in page <head>',
-    ],
-  },
-  outbrain: {
-    title: 'Native redirect tracking',
-    steps: ['Put Click URL in Outbrain', 'Tracker redirects to LP'],
-  },
-};
+import { trackerApi, type Campaign, type TrackingDomain, type TrafficSourceProfile } from '@/lib/api';
 
 export default function CampaignsPage() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [domains, setDomains] = useState<TrackingDomain[]>([]);
+  const [profiles, setProfiles] = useState<TrafficSourceProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [togglingId, setTogglingId] = useState<string | null>(null);
@@ -71,7 +33,7 @@ export default function CampaignsPage() {
     name: '',
     slug: '',
     externalId: '',
-    trafficSource: 'mediago',
+    trafficSourceProfileId: '',
     trackingMode: 'redirect' as 'redirect' | 'direct',
     domainId: '',
     destinationUrl: '',
@@ -88,22 +50,38 @@ export default function CampaignsPage() {
   useEffect(() => {
     load();
     trackerApi.getDomains().then(setDomains).catch(console.error);
+    trackerApi.getTrafficSources().then(setProfiles).catch(console.error);
   }, []);
 
-  const handleSourceChange = (trafficSource: string) => {
-    setForm({ ...form, trafficSource, trackingMode: defaultTrackingMode(trafficSource) });
+  const selectedProfile = profiles.find((p) => p.id === form.trafficSourceProfileId);
+
+  const handleProfileChange = (profileId: string) => {
+    const profile = profiles.find((p) => p.id === profileId);
+    setForm({
+      ...form,
+      trafficSourceProfileId: profileId,
+      trackingMode: profile?.trackingModeDefault || 'redirect',
+    });
   };
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await trackerApi.createCampaign({ ...form, domainId: form.domainId || undefined });
+      await trackerApi.createCampaign({
+        name: form.name,
+        slug: form.slug,
+        externalId: form.externalId || undefined,
+        trafficSourceProfileId: form.trafficSourceProfileId || undefined,
+        trackingMode: form.trackingMode,
+        domainId: form.domainId || undefined,
+        destinationUrl: form.destinationUrl,
+      });
       setShowForm(false);
       setForm({
         name: '',
         slug: '',
         externalId: '',
-        trafficSource: 'mediago',
+        trafficSourceProfileId: profiles[0]?.id || '',
         trackingMode: 'redirect',
         domainId: '',
         destinationUrl: '',
@@ -128,7 +106,7 @@ export default function CampaignsPage() {
 
   const previewRef = form.externalId || form.slug || 'your-campaign-id';
   const lpScript = `<script src="/t/tracker.js" data-campaign="${previewRef}" data-mode="${form.trackingMode}"></script>`;
-  const help = SOURCE_HELP[form.trafficSource] || SOURCE_HELP.native;
+  const helpNote = selectedProfile?.setupNote;
   const verifiedDomains = domains.filter((d) => d.status === 'verified');
 
   if (loading) return <Loading />;
@@ -182,14 +160,27 @@ export default function CampaignsPage() {
 
             <div className="grid sm:grid-cols-2 gap-4">
               <div>
-                <Label>Traffic source</Label>
-                <Select value={form.trafficSource} onChange={(e) => handleSourceChange(e.target.value)}>
-                  <option value="mediago">Mediago</option>
-                  <option value="native">Native</option>
-                  <option value="facebook">Facebook</option>
-                  <option value="google">Google</option>
-                  <option value="outbrain">Outbrain</option>
+                <Label>Traffic source profile</Label>
+                <Select
+                  value={form.trafficSourceProfileId}
+                  onChange={(e) => handleProfileChange(e.target.value)}
+                  required
+                >
+                  <option value="">Select profile...</option>
+                  {profiles.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name} {p.isSystem ? '' : '(custom)'}
+                    </option>
+                  ))}
                 </Select>
+                {selectedProfile && (
+                  <Link
+                    href={`/traffic-sources/${selectedProfile.id}`}
+                    className="text-xs text-indigo-600 hover:underline mt-1 inline-block"
+                  >
+                    Edit profile mappings →
+                  </Link>
+                )}
               </div>
               <div>
                 <Label>Tracking mode</Label>
@@ -235,14 +226,11 @@ export default function CampaignsPage() {
               />
             </div>
 
-            <Alert tone="info">
-              <p className="font-medium mb-2">{help.title}</p>
-              <ul className="list-disc ml-4 space-y-1 text-indigo-800/80">
-                {help.steps.map((s) => (
-                  <li key={s}>{s}</li>
-                ))}
-              </ul>
-            </Alert>
+            {helpNote && (
+              <Alert tone="info">
+                <p className="text-indigo-800/90">{helpNote}</p>
+              </Alert>
+            )}
 
             <div>
               <Label>LP script — add to &lt;head&gt;</Label>
@@ -272,7 +260,9 @@ export default function CampaignsPage() {
                   <span className="font-medium text-zinc-900">{c.name}</span>
                 </Td>
                 <Td>
-                  <span className="capitalize">{c.trafficSource}</span>
+                  <span className="capitalize">
+                    {c.trafficSourceProfile?.name || c.trafficSource}
+                  </span>
                   {c.domain && (
                     <p className="text-xs font-mono text-zinc-400 mt-0.5">{c.domain.hostname}</p>
                   )}

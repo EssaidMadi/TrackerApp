@@ -10,6 +10,7 @@ import { CampaignsModule } from './campaigns/campaigns.module';
 import { TrackerScriptModule } from './tracker-script/tracker-script.module';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { DomainsModule } from './domains/domains.module';
+import { TrafficSourcesModule } from './traffic-sources/traffic-sources.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { DomainsModule } from './domains/domains.module';
     TrackerScriptModule,
     AnalyticsModule,
     DomainsModule,
+    TrafficSourcesModule,
   ],
   controllers: [AppController],
   providers: [AppService],

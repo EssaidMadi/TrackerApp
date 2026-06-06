@@ -1,7 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
-import { Click, Conversion, PostbackConfig } from '@prisma/client';
-import { PostbackResult, PostbackStrategy } from '../interfaces/postback-strategy.interface';
+import { Click, Conversion, ConversionMethod, PostbackConfig } from '@prisma/client';
+import {
+  CampaignPostbackContext,
+  PostbackResult,
+  PostbackStrategy,
+} from '../interfaces/postback-strategy.interface';
 import { httpRequestWithRetry } from '../helpers/facebook-graph-http.helper';
 
 @Injectable()
@@ -12,7 +16,9 @@ export class GoogleStrategy implements PostbackStrategy {
     return 'google';
   }
 
-  canHandle(config: PostbackConfig): boolean {
+  canHandle(config: PostbackConfig, campaign?: CampaignPostbackContext): boolean {
+    const method = campaign?.trafficSourceProfile?.conversionMethod;
+    if (method && method !== ConversionMethod.google_offline) return false;
     return config.googleEnabled;
   }
 

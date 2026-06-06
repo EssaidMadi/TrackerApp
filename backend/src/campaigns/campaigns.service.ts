@@ -3,6 +3,8 @@ import { DomainStatus, Prisma, TrackingMode, TrafficSource } from '@prisma/clien
 import { PrismaService } from '../prisma/prisma.service';
 import { DomainsService } from '../domains/domains.service';
 import { TrackerScriptService } from '../tracker-script/tracker-script.service';
+import { TrafficSourcesService } from '../traffic-sources/traffic-sources.service';
+import { buildClickUrlFromTemplate } from '../shared/tracking/param-mapping';
 import {
   CreateCampaignDto,
   UpdateCampaignDto,
@@ -15,10 +17,14 @@ export class CampaignsService {
     private readonly prisma: PrismaService,
     private readonly domainsService: DomainsService,
     private readonly trackerScript: TrackerScriptService,
+    private readonly trafficSources: TrafficSourcesService,
   ) {}
 
   async create(dto: CreateCampaignDto) {
     await this.validateDomainId(dto.domainId);
+    const profile = await this.resolveProfile(dto.trafficSourceProfileId, dto.trafficSource);
+
+    const postbackDefaults = this.trafficSources.buildPostbackDefaultsFromProfile(profile);
 
     const campaign = await this.prisma.campaign.create({
       data: {
@@ -26,10 +32,11 @@ export class CampaignsService {
         slug: dto.slug,
         externalId: dto.externalId || undefined,
         domainId: dto.domainId || undefined,
-        trafficSource: dto.trafficSource,
-        trackingMode: dto.trackingMode || this.defaultTrackingMode(dto.trafficSource),
-        trafficSourceName:
-          dto.trafficSourceName || this.defaultTrafficSourceName(dto.trafficSource),
+        trafficSource: dto.trafficSource || this.slugToTrafficSource(profile.slug),
+        trafficSourceProfileId: profile.id,
+        trackingMode:
+          dto.trackingMode || profile.trackingModeDefault || TrackingMode.redirect,
+        trafficSourceName: dto.trafficSourceName || profile.name,
         trafficSourceId: dto.trafficSourceId,
         workspaceName: dto.workspaceName,
         workspaceId: dto.workspaceId,
@@ -41,9 +48,9 @@ export class CampaignsService {
         affiliateNetworkId: dto.affiliateNetworkId,
         destinationUrl: dto.destinationUrl,
         active: dto.active ?? true,
-        postbackConfig: { create: {} },
+        postbackConfig: { create: postbackDefaults },
       },
-      include: { postbackConfig: true, domain: true },
+      include: { postbackConfig: true, domain: true, trafficSourceProfile: true },
     });
 
     return this.enrichCampaign(campaign);
@@ -51,7 +58,7 @@ export class CampaignsService {
 
   async findAll() {
     const campaigns = await this.prisma.campaign.findMany({
-      include: { postbackConfig: true, domain: true },
+      include: { postbackConfig: true, domain: true, trafficSourceProfile: true },
       orderBy: { createdAt: 'desc' },
     });
 
@@ -61,7 +68,7 @@ export class CampaignsService {
   async findOne(id: string) {
     const campaign = await this.prisma.campaign.findUnique({
       where: { id },
-      include: { postbackConfig: true, domain: true },
+      include: { postbackConfig: true, domain: true, trafficSourceProfile: true },
     });
 
     if (!campaign) throw new NotFoundException('Campaign not found');
@@ -74,7 +81,7 @@ export class CampaignsService {
       await this.validateDomainId(dto.domainId || undefined);
     }
 
-    const { domainId, ...rest } = dto;
+    const { domainId, trafficSourceProfileId, ...rest } = dto;
     const data: Prisma.CampaignUpdateInput = { ...rest };
 
     if (dto.externalId === '') {
@@ -87,14 +94,20 @@ export class CampaignsService {
       data.domain = { connect: { id: domainId } };
     }
 
-    if (dto.trafficSource && !dto.trafficSourceName) {
+    if (trafficSourceProfileId) {
+      const profile = await this.trafficSources.findOne(trafficSourceProfileId);
+      data.trafficSourceProfile = { connect: { id: profile.id } };
+      data.trafficSource = this.slugToTrafficSource(profile.slug);
+      if (!dto.trafficSourceName) data.trafficSourceName = profile.name;
+      if (!dto.trackingMode) data.trackingMode = profile.trackingModeDefault;
+    } else if (dto.trafficSource && !dto.trafficSourceName) {
       data.trafficSourceName = this.defaultTrafficSourceName(dto.trafficSource);
     }
 
     const campaign = await this.prisma.campaign.update({
       where: { id },
       data,
-      include: { postbackConfig: true, domain: true },
+      include: { postbackConfig: true, domain: true, trafficSourceProfile: true },
     });
 
     return this.enrichCampaign(campaign);
@@ -145,9 +158,23 @@ export class CampaignsService {
     };
   }
 
-  private defaultTrackingMode(source: TrafficSource): TrackingMode {
-    if (source === 'facebook' || source === 'google') return TrackingMode.direct;
-    return TrackingMode.redirect;
+  private async resolveProfile(profileId?: string, trafficSource?: TrafficSource) {
+    if (profileId) {
+      return this.trafficSources.findOne(profileId);
+    }
+    if (trafficSource) {
+      const profile = await this.trafficSources.findBySlug(trafficSource);
+      if (profile) return profile;
+    }
+    const mediago = await this.trafficSources.findBySlug('mediago');
+    if (!mediago) throw new BadRequestException('No traffic source profiles configured');
+    return mediago;
+  }
+
+  private slugToTrafficSource(slug: string): TrafficSource {
+    const known: TrafficSource[] = ['mediago', 'facebook', 'google', 'outbrain', 'native'];
+    if (known.includes(slug as TrafficSource)) return slug as TrafficSource;
+    return TrafficSource.native;
   }
 
   private defaultTrafficSourceName(source: string): string {
@@ -180,25 +207,23 @@ export class CampaignsService {
     destinationUrl: string;
     name: string;
     domain?: { hostname: string; status: DomainStatus; label: string } | null;
+    trafficSourceProfile?: {
+      name: string;
+      slug: string;
+      trackingModeDefault: TrackingMode;
+      clickUrlTemplate: string | null;
+      directAdUrlTemplate: string | null;
+      paramMappings: unknown;
+      setupNote: string | null;
+      conversionMethod: string;
+    } | null;
     [key: string]: unknown;
   }) {
     const trackerBase = this.domainsService.getTrackerBaseUrl(campaign.domain);
     const campaignRef = campaign.externalId || campaign.slug;
     const clickUrl = `${trackerBase}/${campaignRef}`;
     const mode = campaign.trackingMode || TrackingMode.redirect;
-
-    const mediagoTemplate = `${clickUrl}?adid=\${AD_ID}&adtitle=\${AD_TITLE}&campaignid=\${CAMPAIGN_ID}&publishername=\${PUBLISHER_NAME}&siteid=\${SITE_ID}&contentname=\${CONTENT_NAME}&platform=\${PLATFORM}&assetid=\${ASSET_ID}&click_id=\${TRACKING_ID}`;
-
-    const redirectTemplates: Record<string, string> = {
-      mediago: mediagoTemplate,
-      native: mediagoTemplate,
-      outbrain: `${clickUrl}?click_id=\${OB_CLICK_ID}&utm_source=outbrain`,
-    };
-
-    const directAdUrls: Record<string, string> = {
-      facebook: `${campaign.destinationUrl}?utm_source=facebook&utm_medium=paid_social&utm_campaign=${encodeURIComponent(campaign.name)}`,
-      google: `${campaign.destinationUrl}?utm_source=google&utm_medium=cpc&utm_campaign=${encodeURIComponent(campaign.name)}`,
-    };
+    const profile = campaign.trafficSourceProfile;
 
     const lpScriptSnippet = this.trackerScript.getLpScriptSnippet(
       campaignRef,
@@ -206,28 +231,39 @@ export class CampaignsService {
       trackerBase,
     );
 
-    const setupNotes: Record<string, string> = {
-      mediago: 'Put the redirect Click URL in Mediago. User clicks → tracker records visit → redirects to LP.',
-      native: 'Put the redirect Click URL in your native ad network tracking field.',
-      outbrain: 'Put the redirect Click URL in Outbrain. Uses click_id macro.',
-      facebook:
-        'Put the Direct Ad URL in Facebook (website URL field). Facebook adds fbclid automatically. Add the LP script to your landing page — no redirect.',
-      google:
-        'Put the Direct Ad URL in Google Ads (final URL). Google adds gclid automatically. Add the LP script to your landing page — no redirect.',
-    };
+    let trackingTemplate = campaign.destinationUrl;
+    if (profile) {
+      if (mode === TrackingMode.direct && profile.directAdUrlTemplate) {
+        trackingTemplate = buildClickUrlFromTemplate(
+          profile.directAdUrlTemplate,
+          clickUrl,
+          campaign.destinationUrl,
+          campaign.name,
+        );
+      } else if (profile.clickUrlTemplate) {
+        trackingTemplate = buildClickUrlFromTemplate(
+          profile.clickUrlTemplate,
+          clickUrl,
+          campaign.destinationUrl,
+          campaign.name,
+        );
+      }
+    }
 
     return {
       ...campaign,
       trackerBaseUrl: trackerBase,
       clickUrl,
       trackingMode: mode,
-      trackingTemplate:
+      trackingTemplate,
+      directAdUrl:
         mode === TrackingMode.direct
-          ? directAdUrls[campaign.trafficSource] || campaign.destinationUrl
-          : redirectTemplates[campaign.trafficSource] || mediagoTemplate,
-      directAdUrl: directAdUrls[campaign.trafficSource] || null,
+          ? trackingTemplate
+          : null,
       lpScriptSnippet,
-      setupNote: setupNotes[campaign.trafficSource] || setupNotes.native,
+      setupNote: profile?.setupNote || null,
+      paramMappings: profile?.paramMappings || [],
+      conversionMethod: profile?.conversionMethod || null,
     };
   }
 }

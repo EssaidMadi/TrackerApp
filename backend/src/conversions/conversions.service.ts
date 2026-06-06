@@ -5,6 +5,11 @@ import { PostbacksService } from '../postbacks/postbacks.service';
 import { CreateConversionDto } from './dto/create-conversion.dto';
 import type { ConversionContext } from './dto/conversion-context';
 import { isTestLeadFromQuestionnaireData } from '../shared/tracking/params';
+import {
+  DEFAULT_PARAM_MAPPINGS,
+  getReportFieldsFromClick,
+  type ParamMapping,
+} from '../shared/tracking/param-mapping';
 
 @Injectable()
 export class ConversionsService {
@@ -118,7 +123,7 @@ export class ConversionsService {
         where,
         include: {
           click: true,
-          campaign: true,
+          campaign: { include: { trafficSourceProfile: true } },
           postbackLogs: true,
         },
         orderBy: { createdAt: 'desc' },
@@ -128,7 +133,22 @@ export class ConversionsService {
       this.prisma.conversion.count({ where }),
     ]);
 
-    return { items, total };
+    return {
+      items: items.map((item) => ({
+        ...item,
+        click: item.click
+          ? {
+              ...item.click,
+              reportFields: getReportFieldsFromClick(
+                item.click,
+                (item.campaign.trafficSourceProfile?.paramMappings as unknown as ParamMapping[]) ||
+                  DEFAULT_PARAM_MAPPINGS,
+              ),
+            }
+          : item.click,
+      })),
+      total,
+    };
   }
 
   async retry(conversionId: string) {

@@ -131,14 +131,16 @@ export default function ConversionsPage() {
                     <tr className="bg-zinc-50/80 border-b border-zinc-100">
                       <td colSpan={9} className="px-5 py-4">
                         <div className="grid grid-cols-4 gap-3 text-xs">
+                          {(click.reportFields?.length
+                            ? click.reportFields.map((f) => (
+                                <Detail key={f.label} label={f.label} value={f.value} />
+                              ))
+                            : [
+                                <Detail key="ad" label="Ad ID" value={click.adId} />,
+                                <Detail key="plat" label="Platform" value={click.platform} />,
+                                <Detail key="pub" label="Publisher" value={click.publisherName} />,
+                              ])}
                           <Detail label="Browser" value={click.browserVersion || click.browser} />
-                          <Detail label="Platform" value={click.platform} />
-                          <Detail label="Ad ID" value={click.adId} />
-                          <Detail label="Ad Title" value={click.adTitle} />
-                          <Detail label="Campaign ID" value={click.campaignExternalId} />
-                          <Detail label="Site ID" value={click.siteId} />
-                          <Detail label="Content" value={click.contentName} />
-                          <Detail label="Asset ID" value={click.assetId} />
                           <Detail label="Region" value={click.region} />
                           <Detail label="Referrer" value={click.referrer} />
                           <Detail label="Transaction ID" value={c.transactionId} />

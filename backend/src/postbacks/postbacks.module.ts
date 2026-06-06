@@ -4,10 +4,17 @@ import { PostbacksService } from './postbacks.service';
 import { MediagoStrategy } from './strategies/mediago.strategy';
 import { FacebookStrategy } from './strategies/facebook.strategy';
 import { GoogleStrategy } from './strategies/google.strategy';
+import { OutbrainStrategy } from './strategies/outbrain.strategy';
 
 @Module({
   imports: [HttpModule],
-  providers: [PostbacksService, MediagoStrategy, FacebookStrategy, GoogleStrategy],
+  providers: [
+    PostbacksService,
+    MediagoStrategy,
+    FacebookStrategy,
+    GoogleStrategy,
+    OutbrainStrategy,
+  ],
   exports: [PostbacksService],
 })
 export class PostbacksModule {}

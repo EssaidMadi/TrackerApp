@@ -37,6 +37,37 @@ enum PostbackNetwork {
   mediago
   facebook
   google
+  outbrain
+}
+
+enum ConversionMethod {
+  mediago_s2s
+  facebook_capi
+  google_offline
+  outbrain_s2s
+  generic_postback
+  none
+}
+
+model TrafficSourceProfile {
+  id                    String           @id @default(uuid())
+  slug                  String           @unique
+  name                  String
+  trackingModeDefault   TrackingMode     @default(redirect) @map("tracking_mode_default")
+  clickUrlTemplate      String?          @map("click_url_template")
+  directAdUrlTemplate   String?          @map("direct_ad_url_template")
+  paramMappings         Json             @map("param_mappings")
+  conversionMethod      ConversionMethod @map("conversion_method")
+  postbackDefaults      Json?            @map("postback_defaults")
+  setupNote             String?          @map("setup_note")
+  isSystem              Boolean          @default(false) @map("is_system")
+  active                Boolean          @default(true)
+  createdAt             DateTime         @default(now()) @map("created_at")
+  updatedAt             DateTime         @updatedAt @map("updated_at")
+
+  campaigns Campaign[]
+
+  @@map("traffic_source_profiles")
 }
 
 model TrackingDomain {
@@ -70,6 +101,9 @@ model Campaign {
   active         Boolean       @default(true)
   domainId       String?       @map("domain_id")
   domain         TrackingDomain? @relation(fields: [domainId], references: [id], onDelete: SetNull)
+
+  trafficSourceProfileId String?              @map("traffic_source_profile_id")
+  trafficSourceProfile   TrafficSourceProfile? @relation(fields: [trafficSourceProfileId], references: [id], onDelete: SetNull)
 
   workspaceName      String? @map("workspace_name")
   workspaceId        String? @map("workspace_id")

@@ -26,6 +26,12 @@ export interface TrackingParams extends NetworkParams {
   referrer: string;
 }
 
+import {
+  DEFAULT_PARAM_MAPPINGS,
+  resolveParamsFromMappings,
+  type ParamMapping,
+} from './param-mapping';
+
 export interface LeadEventData {
   user_email?: string;
   phone?: string;
@@ -62,52 +68,33 @@ function normalizeQuery(
 export function getTrackingParamsFromQuery(
   query: Record<string, string | string[] | undefined>,
   tkCid?: string | null,
+  mappings: ParamMapping[] = DEFAULT_PARAM_MAPPINGS,
 ): TrackingParams {
-  const q = normalizeQuery(query);
-  const get = (...keys: string[]) => {
-    for (const k of keys) {
-      if (q[k]) return q[k];
-    }
-    return '';
-  };
-
-  const raw = (...keys: string[]) => sanitizeParam(get(...keys));
-
-  // Mediago passes TRACKING_ID as click_id in the URL
-  const networkClickId = raw('click_id', 'tracking_id', 'subid');
-  const trackingId = raw('tracking_id') || networkClickId;
-
-  const gclid =
-    raw('gclid') ||
-    raw('fbclid') ||
-    networkClickId ||
-    sanitizeParam(tkCid || undefined) ||
-    raw('subid') ||
-    '';
+  const resolved = resolveParamsFromMappings(query, mappings, tkCid);
 
   return {
-    utm_source: raw('utm_source') || '',
-    utm_medium: raw('utm_medium') || '',
-    utm_campaign: raw('utm_campaign', 'campaignid', 'campaign_id') || '',
-    utm_term: raw('utm_term', 'assetid', 'asset_id') || '',
-    utm_content: raw('utm_content', 'adtitle', 'ad_title') || '',
-    utm_angle: raw('utm_angle') || '',
-    utm_adset: raw('utm_adset') || '',
-    tracking_id: trackingId,
-    external_click_id: networkClickId,
-    fbclid: raw('fbclid'),
-    click_id: raw('click_id'),
-    subid: raw('subid'),
-    ad_id: raw('ad_id', 'adid'),
-    ad_title: raw('ad_title', 'adtitle'),
-    campaign_external_id: raw('campaign_external_id', 'campaignid', 'campaign_id'),
-    publisher_name: raw('publisher_name', 'publishername'),
-    site_id: raw('site_id', 'siteid'),
-    content_name: raw('content_name', 'contentname'),
-    platform: raw('platform'),
-    asset_id: raw('asset_id', 'assetid'),
-    gclid,
-    referrer: raw('referrer') || '',
+    utm_source: resolved.utm_source || '',
+    utm_medium: resolved.utm_medium || '',
+    utm_campaign: resolved.utm_campaign || '',
+    utm_term: resolved.utm_term || '',
+    utm_content: resolved.utm_content || '',
+    utm_angle: resolved.utm_angle || '',
+    utm_adset: resolved.utm_adset || '',
+    tracking_id: resolved.tracking_id || '',
+    external_click_id: resolved.external_click_id || '',
+    fbclid: resolved.fbclid,
+    click_id: resolved.click_id,
+    subid: resolved.subid,
+    ad_id: resolved.ad_id,
+    ad_title: resolved.ad_title,
+    campaign_external_id: resolved.campaign_external_id,
+    publisher_name: resolved.publisher_name,
+    site_id: resolved.site_id,
+    content_name: resolved.content_name,
+    platform: resolved.platform,
+    asset_id: resolved.asset_id,
+    gclid: resolved.gclid || '',
+    referrer: resolved.referrer || '',
   };
 }
 

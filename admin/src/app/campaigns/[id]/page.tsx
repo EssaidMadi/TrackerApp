@@ -15,13 +15,19 @@ import {
   StatCard,
   statusTone,
 } from '@/components/ui';
-import { trackerApi, type Campaign, type PostbackConfig, type TrackingDomain } from '@/lib/api';
+import {
+  trackerApi,
+  type Campaign,
+  type PostbackConfig,
+  type TrackingDomain,
+  type TrafficSourceProfile,
+} from '@/lib/api';
 
 type CampaignForm = {
   name: string;
   slug: string;
   externalId: string;
-  trafficSource: string;
+  trafficSourceProfileId: string;
   trackingMode: 'redirect' | 'direct';
   domainId: string;
   destinationUrl: string;
@@ -36,7 +42,7 @@ function toForm(c: Campaign): CampaignForm {
     name: c.name,
     slug: c.slug,
     externalId: c.externalId || '',
-    trafficSource: c.trafficSource,
+    trafficSourceProfileId: c.trafficSourceProfileId || c.trafficSourceProfile?.id || '',
     trackingMode: c.trackingMode || 'redirect',
     domainId: c.domainId || '',
     destinationUrl: c.destinationUrl,
@@ -55,6 +61,7 @@ export default function CampaignDetailPage() {
   const [stats, setStats] = useState<{ clicks: number; conversions: number; conversionRate: string } | null>(null);
   const [postback, setPostback] = useState<Partial<PostbackConfig>>({});
   const [domains, setDomains] = useState<TrackingDomain[]>([]);
+  const [profiles, setProfiles] = useState<TrafficSourceProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -74,6 +81,7 @@ export default function CampaignDetailPage() {
   useEffect(() => {
     load();
     trackerApi.getDomains().then(setDomains).catch(console.error);
+    trackerApi.getTrafficSources().then(setProfiles).catch(console.error);
   }, [id]);
 
   const saveCampaign = async (e: React.FormEvent) => {
@@ -138,7 +146,7 @@ export default function CampaignDetailPage() {
             <Badge tone={statusTone(campaign.trackingMode)}>{campaign.trackingMode}</Badge>
           </div>
           <p className="text-sm text-zinc-500 capitalize mt-1">
-            {campaign.trafficSource} · {campaign.slug}
+            {campaign.trafficSourceProfile?.name || campaign.trafficSource} · {campaign.slug}
           </p>
         </div>
         <div className="flex gap-2">
@@ -207,23 +215,31 @@ export default function CampaignDetailPage() {
 
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="text-xs text-gray-500 block mb-1">Traffic source</label>
+            <label className="text-xs text-gray-500 block mb-1">Traffic source profile</label>
             <select
-              value={form.trafficSource}
+              value={form.trafficSourceProfileId}
               onChange={(e) => {
-                const trafficSource = e.target.value;
-                const trackingMode =
-                  trafficSource === 'facebook' || trafficSource === 'google' ? 'direct' : 'redirect';
-                setForm({ ...form, trafficSource, trackingMode });
+                const profile = profiles.find((p) => p.id === e.target.value);
+                setForm({
+                  ...form,
+                  trafficSourceProfileId: e.target.value,
+                  trackingMode: profile?.trackingModeDefault || form.trackingMode,
+                });
               }}
               className="border rounded px-3 py-2 w-full"
             >
-              <option value="mediago">Mediago</option>
-              <option value="native">Native</option>
-              <option value="facebook">Facebook</option>
-              <option value="google">Google</option>
-              <option value="outbrain">Outbrain</option>
+              {profiles.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
             </select>
+            <Link
+              href={`/traffic-sources/${campaign.trafficSourceProfileId || ''}`}
+              className="text-xs text-indigo-600 hover:underline mt-1 inline-block"
+            >
+              Edit profile →
+            </Link>
           </div>
           <div>
             <label className="text-xs text-gray-500 block mb-1">Tracking mode</label>
@@ -326,6 +342,34 @@ export default function CampaignDetailPage() {
         <CodeBlock>{campaign.trackingTemplate}</CodeBlock>
       </Card>
 
+      {campaign.paramMappings && campaign.paramMappings.length > 0 && (
+        <Card className="mb-6">
+          <h2 className="text-sm font-semibold text-zinc-900 mb-3">Param mapping (inherited)</h2>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="text-left text-zinc-400 border-b">
+                  <th className="py-2 pr-4">Display</th>
+                  <th className="py-2 pr-4">Internal</th>
+                  <th className="py-2 pr-4">External keys</th>
+                  <th className="py-2">In reports</th>
+                </tr>
+              </thead>
+              <tbody>
+                {campaign.paramMappings.map((m) => (
+                  <tr key={m.internalField} className="border-b border-zinc-50">
+                    <td className="py-2 pr-4">{m.displayLabel}</td>
+                    <td className="py-2 pr-4 font-mono text-zinc-500">{m.internalField}</td>
+                    <td className="py-2 pr-4 font-mono">{m.externalKeys.join(', ')}</td>
+                    <td className="py-2">{m.showInReports ? 'Yes' : '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
+
       <Card className="mb-6">
         <h2 className="text-sm font-semibold text-zinc-900 mb-3">LP Script</h2>
         <CodeBlock>{campaign.lpScriptSnippet || ''}</CodeBlock>
@@ -334,7 +378,15 @@ export default function CampaignDetailPage() {
       <Card>
         <h2 className="font-semibold mb-4">Postback Configuration</h2>
 
+        <p className="text-sm text-zinc-500 mb-4">
+          Conversion method:{' '}
+          <span className="font-medium text-zinc-800">
+            {(campaign.conversionMethod || 'mediago_s2s').replace(/_/g, ' ')}
+          </span>
+        </p>
+
         <div className="space-y-4">
+          {(campaign.conversionMethod === 'mediago_s2s' || !campaign.conversionMethod) && (
           <fieldset className="border rounded p-4">
             <legend className="px-2 text-sm font-medium">Mediago S2S</legend>
             <label className="flex items-center gap-2 mb-2">
@@ -355,7 +407,9 @@ export default function CampaignDetailPage() {
               className="border rounded px-3 py-2 w-full"
             />
           </fieldset>
+          )}
 
+          {campaign.conversionMethod === 'facebook_capi' && (
           <fieldset className="border rounded p-4">
             <legend className="px-2 text-sm font-medium">Facebook CAPI</legend>
             <label className="flex items-center gap-2 mb-2">
@@ -379,7 +433,9 @@ export default function CampaignDetailPage() {
               className="border rounded px-3 py-2 w-full"
             />
           </fieldset>
+          )}
 
+          {campaign.conversionMethod === 'google_offline' && (
           <fieldset className="border rounded p-4">
             <legend className="px-2 text-sm font-medium">Google</legend>
             <label className="flex items-center gap-2 mb-2">
@@ -409,6 +465,7 @@ export default function CampaignDetailPage() {
               className="border rounded px-3 py-2 w-full"
             />
           </fieldset>
+          )}
         </div>
 
         <Button onClick={savePostback} className="mt-4">
