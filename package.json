@@ -1,0 +1,13 @@
+{
+  "name": "tracking-app",
+  "private": true,
+  "scripts": {
+    "dev:backend": "cd backend && npm run start:dev",
+    "dev:admin": "cd admin && npm run dev",
+    "build": "cd backend && npm run build && cd ../admin && npm run build",
+    "test": "cd backend && npm test",
+    "db:up": "docker compose up -d",
+    "db:migrate": "cd backend && npx prisma migrate deploy",
+    "integration-test": "bash scripts/integration-test.sh"
+  }
+}

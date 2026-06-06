@@ -1,0 +1,269 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum TrafficSource {
+  mediago
+  facebook
+  google
+  outbrain
+  native
+}
+
+enum TrackingMode {
+  redirect
+  direct
+}
+
+enum DomainStatus {
+  pending_dns
+  verified
+  failed
+}
+
+enum ConversionStatus {
+  pending
+  sent
+  failed
+  skipped
+}
+
+enum PostbackNetwork {
+  mediago
+  facebook
+  google
+}
+
+model TrackingDomain {
+  id                String       @id @default(uuid())
+  label             String
+  subdomain         String       @default("track")
+  rootDomain        String       @map("root_domain")
+  hostname          String       @unique
+  status            DomainStatus @default(pending_dns)
+  verificationToken String       @map("verification_token")
+  verificationHost  String       @map("verification_host")
+  dnsRecords        Json         @map("dns_records")
+  lastCheckedAt     DateTime?    @map("last_checked_at")
+  lastCheckError    String?      @map("last_check_error")
+  createdAt         DateTime     @default(now()) @map("created_at")
+  updatedAt         DateTime     @updatedAt @map("updated_at")
+
+  campaigns Campaign[]
+
+  @@map("tracking_domains")
+}
+
+model Campaign {
+  id             String        @id @default(uuid())
+  externalId     String?       @unique @map("external_id")
+  name           String
+  slug           String        @unique
+  trafficSource  TrafficSource @map("traffic_source")
+  trackingMode   TrackingMode  @default(redirect) @map("tracking_mode")
+  destinationUrl String        @map("destination_url")
+  active         Boolean       @default(true)
+  domainId       String?       @map("domain_id")
+  domain         TrackingDomain? @relation(fields: [domainId], references: [id], onDelete: SetNull)
+
+  workspaceName      String? @map("workspace_name")
+  workspaceId        String? @map("workspace_id")
+  trafficSourceId    String? @map("traffic_source_id")
+  trafficSourceName  String? @map("traffic_source_name")
+  landerId           String? @map("lander_id")
+  landerName         String? @map("lander_name")
+  offerId            String? @map("offer_id")
+  offerName          String? @map("offer_name")
+  affiliateNetwork   String? @map("affiliate_network")
+  affiliateNetworkId String? @map("affiliate_network_id")
+
+  createdAt      DateTime      @default(now()) @map("created_at")
+  updatedAt      DateTime      @updatedAt @map("updated_at")
+
+  postbackConfig PostbackConfig?
+  clicks         Click[]
+  conversions    Conversion[]
+
+  @@map("campaigns")
+}
+
+model PostbackConfig {
+  id         String   @id @default(uuid())
+  campaignId String   @unique @map("campaign_id")
+  campaign   Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  mediagoConversionType Int     @default(10) @map("mediago_conversion_type")
+  mediagoEnabled        Boolean @default(true) @map("mediago_enabled")
+
+  facebookPixelId     String? @map("facebook_pixel_id")
+  facebookAccessToken String? @map("facebook_access_token")
+  facebookEnabled     Boolean @default(false) @map("facebook_enabled")
+
+  googleConversionId    String? @map("google_conversion_id")
+  googleConversionLabel String? @map("google_conversion_label")
+  googlePostbackUrl     String? @map("google_postback_url")
+  googleEnabled         Boolean @default(false) @map("google_enabled")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("postback_configs")
+}
+
+model Click {
+  id         String   @id @default(uuid())
+  clickId    String   @unique @map("click_id")
+  campaignId String   @map("campaign_id")
+  campaign   Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  // Network click identifiers
+  trackingId       String? @map("tracking_id")
+  externalClickId  String? @map("external_click_id")
+  gclid            String?
+  fbclid           String?
+
+  // Mediago / native ad params (from Voluum-style URLs)
+  adId               String? @map("ad_id")
+  adTitle            String? @map("ad_title")
+  campaignExternalId String? @map("campaign_external_id")
+  publisherName      String? @map("publisher_name")
+  siteId             String? @map("site_id")
+  contentName        String? @map("content_name")
+  platform           String?
+  assetId            String? @map("asset_id")
+
+  // Voluum funnel
+  pathId             String? @map("path_id")
+  landerId           String? @map("lander_id")
+  landerName         String? @map("lander_name")
+  offerId            String? @map("offer_id")
+  offerName          String? @map("offer_name")
+  affiliateNetwork   String? @map("affiliate_network")
+  affiliateNetworkId String? @map("affiliate_network_id")
+  trafficSourceId    String? @map("traffic_source_id")
+  trafficSourceName  String? @map("traffic_source_name")
+
+  // Voluum custom variables 1-10
+  customVariable1  String? @map("custom_variable_1")
+  customVariable2  String? @map("custom_variable_2")
+  customVariable3  String? @map("custom_variable_3")
+  customVariable4  String? @map("custom_variable_4")
+  customVariable5  String? @map("custom_variable_5")
+  customVariable6  String? @map("custom_variable_6")
+  customVariable7  String? @map("custom_variable_7")
+  customVariable8  String? @map("custom_variable_8")
+  customVariable9  String? @map("custom_variable_9")
+  customVariable10 String? @map("custom_variable_10")
+
+  // UTMs
+  utmSource   String? @map("utm_source")
+  utmMedium   String? @map("utm_medium")
+  utmCampaign String? @map("utm_campaign")
+  utmTerm     String? @map("utm_term")
+  utmContent  String? @map("utm_content")
+
+  // Geo (Voluum: Country, Region, City)
+  country     String?
+  countryCode String? @map("country_code")
+  region      String?
+  city        String?
+
+  // Device (Voluum: Device, OS, Brand, Model, Browser)
+  device         String?
+  os             String?
+  osVersion      String? @map("os_version")
+  brand          String?
+  model          String?
+  browser        String?
+  browserVersion String? @map("browser_version")
+
+  // Network info
+  isp            String?
+  mobileCarrier  String? @map("mobile_carrier")
+  connectionType String? @map("connection_type")
+  isProxy        Boolean @default(false) @map("is_proxy")
+  isHosting      Boolean @default(false) @map("is_hosting")
+
+  // Bot / fraud signals
+  isBot      Boolean @default(false) @map("is_bot")
+  botScore   Int     @default(0) @map("bot_score")
+  botReasons Json?   @map("bot_reasons")
+
+  ipAddress      String? @map("ip_address")
+  userAgent      String? @map("user_agent")
+  acceptLanguage String? @map("accept_language")
+  referrer       String?
+
+  rawParams       Json? @map("raw_params")
+  requestHeaders  Json? @map("request_headers")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  conversions Conversion[]
+
+  @@index([campaignId, createdAt])
+  @@index([trackingId])
+  @@index([publisherName])
+  @@index([platform])
+  @@index([device])
+  @@index([countryCode])
+  @@index([isBot])
+  @@map("clicks")
+}
+
+model Conversion {
+  id         String           @id @default(uuid())
+  clickId    String           @map("click_id")
+  click      Click            @relation(fields: [clickId], references: [clickId], onDelete: Cascade)
+  campaignId String           @map("campaign_id")
+  campaign   Campaign         @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  eventType     String           @default("lead") @map("event_type")
+  revenue       Float            @default(0)
+  totalRevenue  Float?           @map("total_revenue")
+  cost          Float            @default(0)
+  currency      String?
+  transactionId String?          @map("transaction_id")
+  status        ConversionStatus @default(pending)
+  metadata      Json?
+
+  incomingPostbackIp  String? @map("incoming_postback_ip")
+  incomingPostbackUrl String? @map("incoming_postback_url")
+  postbackParam1      String? @map("postback_param_1")
+  postbackParam2      String? @map("postback_param_2")
+  postbackParam3      String? @map("postback_param_3")
+  postbackParam4      String? @map("postback_param_4")
+  postbackParam5      String? @map("postback_param_5")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  postbackLogs PostbackLog[]
+
+  @@unique([clickId, eventType])
+  @@index([campaignId, createdAt])
+  @@map("conversions")
+}
+
+model PostbackLog {
+  id           String          @id @default(uuid())
+  conversionId String          @map("conversion_id")
+  conversion   Conversion      @relation(fields: [conversionId], references: [id], onDelete: Cascade)
+  network      PostbackNetwork
+  method       String
+  url          String
+  requestBody  String?         @map("request_body")
+  httpStatus   Int?            @map("http_status")
+  response     String?
+  success      Boolean         @default(false)
+  retryCount   Int             @default(0) @map("retry_count")
+  createdAt    DateTime        @default(now()) @map("created_at")
+
+  @@index([conversionId])
+  @@map("postback_logs")
+}

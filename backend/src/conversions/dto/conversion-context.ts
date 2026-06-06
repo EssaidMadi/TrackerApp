@@ -1,0 +1,27 @@
+export interface ConversionContext {
+  incomingPostbackIp?: string;
+  incomingPostbackUrl?: string;
+  postbackParam1?: string;
+  postbackParam2?: string;
+  postbackParam3?: string;
+  postbackParam4?: string;
+  postbackParam5?: string;
+}
+
+export function extractPostbackParamsFromQuery(
+  query: Record<string, string | string[] | undefined>,
+): Partial<ConversionContext> {
+  const get = (key: string) => {
+    const v = query[key];
+    if (Array.isArray(v)) return v[0];
+    return v;
+  };
+
+  return {
+    postbackParam1: get('p1') || get('postback_param_1') || get('param1'),
+    postbackParam2: get('p2') || get('postback_param_2') || get('param2'),
+    postbackParam3: get('p3') || get('postback_param_3') || get('param3'),
+    postbackParam4: get('p4') || get('postback_param_4') || get('param4'),
+    postbackParam5: get('p5') || get('postback_param_5') || get('param5'),
+  };
+}
