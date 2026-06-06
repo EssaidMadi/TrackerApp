@@ -1,4 +1,5 @@
 import { Click, Conversion, ConversionMethod, PostbackConfig } from '@prisma/client';
+import type { ParamMapping } from '../../shared/tracking/param-mapping';
 
 export interface PostbackResult {
   success: boolean;
@@ -13,7 +14,9 @@ export type CampaignPostbackContext = {
   trafficSourceProfile?: {
     conversionMethod: ConversionMethod;
     postbackDefaults: unknown;
+    paramMappings?: ParamMapping[];
   } | null;
+  campaign?: { id: string; name: string; externalId?: string | null };
 };
 
 export interface PostbackStrategy {

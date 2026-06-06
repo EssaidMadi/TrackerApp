@@ -15,6 +15,7 @@ import {
   StatCard,
   statusTone,
 } from '@/components/ui';
+import { PostbackPreview } from '@/components/PostbackPreview';
 import {
   trackerApi,
   type Campaign,
@@ -373,6 +374,18 @@ export default function CampaignDetailPage() {
       <Card className="mb-6">
         <h2 className="text-sm font-semibold text-zinc-900 mb-3">LP Script</h2>
         <CodeBlock>{campaign.lpScriptSnippet || ''}</CodeBlock>
+      </Card>
+
+      <Card className="mb-6">
+        <h2 className="text-sm font-semibold text-zinc-900 mb-3">Outbound conversion (what we send)</h2>
+        <PostbackPreview
+          conversionMethod={campaign.conversionMethod}
+          postback={postback}
+        />
+        <p className="text-xs text-zinc-400 mt-4">
+          After a real conversion, expand it on the <strong>Conversions</strong> page to see the exact
+          URL/body sent and Mediago/Facebook/Google response.
+        </p>
       </Card>
 
       <Card>

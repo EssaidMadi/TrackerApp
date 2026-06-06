@@ -4,6 +4,10 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button, Card, Input, Label, Select, Textarea } from '@/components/ui';
 import { trackerApi, type ParamMapping, type TrafficSourceProfile } from '@/lib/api';
+import {
+  DEFAULT_MEDIAGO_POSTBACK_URL,
+  POSTBACK_TOKEN_DEFINITIONS,
+} from '@/lib/postback-tokens';
 
 const CANONICAL_FIELDS = [
   'tracking_id',
@@ -240,145 +244,219 @@ export function TrafficSourceEditor({
         <Card>
           <div className="flex justify-between items-center mb-4">
             <p className="text-sm text-zinc-500">
-              Map incoming URL query keys to internal fields for storage and reports.
+              Parameters — same layout as Voluum: TS parameter (query key in ad URL), TS token
+              (network macro), postback token (used in outbound conversion URL).
             </p>
             <Button type="button" onClick={addMapping}>
-              Add mapping
+              Add parameter
             </Button>
           </div>
-          <div className="space-y-3">
-            {form.paramMappings.map((m, idx) => (
-              <div
-                key={idx}
-                className="grid grid-cols-12 gap-2 items-end border border-zinc-100 rounded-lg p-3"
-              >
-                <div className="col-span-3">
-                  <Label>Internal field</Label>
-                  <Select
-                    value={m.internalField}
-                    onChange={(e) => updateMapping(idx, { internalField: e.target.value })}
-                  >
-                    {CANONICAL_FIELDS.map((f) => (
-                      <option key={f} value={f}>
-                        {f}
-                      </option>
-                    ))}
-                  </Select>
-                </div>
-                <div className="col-span-2">
-                  <Label>Display label</Label>
-                  <Input
-                    value={m.displayLabel}
-                    onChange={(e) => updateMapping(idx, { displayLabel: e.target.value })}
-                  />
-                </div>
-                <div className="col-span-4">
-                  <Label>External keys (comma-separated)</Label>
-                  <Input
-                    value={m.externalKeys.join(', ')}
-                    onChange={(e) =>
-                      updateMapping(idx, {
-                        externalKeys: e.target.value.split(',').map((k) => k.trim()).filter(Boolean),
-                      })
-                    }
-                    className="font-mono text-xs"
-                  />
-                </div>
-                <div className="col-span-1">
-                  <Label>Macro</Label>
-                  <Input
-                    value={m.urlMacro || ''}
-                    onChange={(e) => updateMapping(idx, { urlMacro: e.target.value })}
-                    className="font-mono text-xs"
-                  />
-                </div>
-                <div className="col-span-1">
-                  <label className="flex items-center gap-1 text-xs">
-                    <input
-                      type="checkbox"
-                      checked={m.showInReports}
-                      onChange={(e) => updateMapping(idx, { showInReports: e.target.checked })}
-                    />
-                    Report
-                  </label>
-                </div>
-                <div className="col-span-1">
-                  <button
-                    type="button"
-                    onClick={() => removeMapping(idx)}
-                    className="text-red-600 text-xs hover:underline"
-                  >
-                    Remove
-                  </button>
-                </div>
-              </div>
-            ))}
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-xs text-zinc-500 border-b">
+                  <th className="pb-2 pr-3 font-medium">Name</th>
+                  <th className="pb-2 pr-3 font-medium">TS parameter</th>
+                  <th className="pb-2 pr-3 font-medium">TS token</th>
+                  <th className="pb-2 pr-3 font-medium">Postback token</th>
+                  <th className="pb-2 pr-3 font-medium">Report</th>
+                  <th className="pb-2 font-medium" />
+                </tr>
+              </thead>
+              <tbody>
+                {form.paramMappings.map((m, idx) => (
+                  <tr key={idx} className="border-b border-zinc-100 align-top">
+                    <td className="py-2 pr-3">
+                      <Input
+                        value={m.displayLabel}
+                        onChange={(e) => updateMapping(idx, { displayLabel: e.target.value })}
+                        className="text-xs"
+                      />
+                    </td>
+                    <td className="py-2 pr-3">
+                      <Input
+                        value={m.externalKeys[0] || ''}
+                        onChange={(e) => {
+                          const rest = m.externalKeys.slice(1);
+                          updateMapping(idx, {
+                            externalKeys: [e.target.value, ...rest].filter(Boolean),
+                          });
+                        }}
+                        className="font-mono text-xs"
+                        placeholder="click_id"
+                      />
+                    </td>
+                    <td className="py-2 pr-3">
+                      <Input
+                        value={m.urlMacro || ''}
+                        onChange={(e) => updateMapping(idx, { urlMacro: e.target.value })}
+                        className="font-mono text-xs"
+                        placeholder="${TRACKING_ID}"
+                      />
+                    </td>
+                    <td className="py-2 pr-3">
+                      <Input
+                        value={m.postbackToken || ''}
+                        onChange={(e) => updateMapping(idx, { postbackToken: e.target.value })}
+                        className="font-mono text-xs"
+                        placeholder="{externalid}"
+                      />
+                    </td>
+                    <td className="py-2 pr-3">
+                      <input
+                        type="checkbox"
+                        checked={m.showInReports}
+                        onChange={(e) => updateMapping(idx, { showInReports: e.target.checked })}
+                      />
+                    </td>
+                    <td className="py-2">
+                      <button
+                        type="button"
+                        onClick={() => removeMapping(idx)}
+                        className="text-red-600 text-xs hover:underline"
+                      >
+                        Remove
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </Card>
       )}
 
       {tab === 'conversion' && (
-        <Card className="space-y-4 max-w-xl">
-          <div>
-            <Label>Conversion method</Label>
-            <Select
-              value={form.conversionMethod}
-              onChange={(e) => setForm({ ...form, conversionMethod: e.target.value })}
-            >
-              {CONVERSION_METHODS.map((m) => (
-                <option key={m} value={m}>
-                  {m.replace(/_/g, ' ')}
-                </option>
-              ))}
-            </Select>
-          </div>
-          {form.conversionMethod === 'mediago_s2s' && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <Card className="lg:col-span-2 space-y-4">
             <div>
-              <Label>Default Mediago conversion type</Label>
-              <Input
-                type="number"
-                value={String(form.postbackDefaults.mediagoConversionType ?? 10)}
-                onChange={(e) =>
-                  setForm({
-                    ...form,
-                    postbackDefaults: {
-                      ...form.postbackDefaults,
-                      mediagoConversionType: parseInt(e.target.value, 10),
-                      mediagoEnabled: true,
-                      facebookEnabled: false,
-                      googleEnabled: false,
-                    },
-                  })
-                }
-              />
+              <h3 className="text-sm font-semibold text-zinc-900">
+                Passing conversion info to traffic source
+              </h3>
+              <p className="text-xs text-zinc-500 mt-1">
+                Same as Voluum &quot;Traffic source postback URL&quot;. On each conversion the
+                tracker replaces tokens and fires this URL.
+              </p>
             </div>
-          )}
-          {form.conversionMethod === 'outbrain_s2s' && (
+
             <div>
-              <Label>Outbrain postback URL template</Label>
-              <Input
-                value={String(form.postbackDefaults.outbrainPostbackUrl ?? '')}
+              <Label>Conversion method</Label>
+              <Select
+                value={form.conversionMethod}
+                onChange={(e) => setForm({ ...form, conversionMethod: e.target.value })}
+              >
+                {CONVERSION_METHODS.map((m) => (
+                  <option key={m} value={m}>
+                    {m.replace(/_/g, ' ')}
+                  </option>
+                ))}
+              </Select>
+            </div>
+
+            <div>
+              <Label>Traffic source postback URL</Label>
+              <Textarea
+                value={String(
+                  form.postbackDefaults.postbackUrlTemplate ??
+                    (form.conversionMethod === 'mediago_s2s' ? DEFAULT_MEDIAGO_POSTBACK_URL : ''),
+                )}
                 onChange={(e) =>
                   setForm({
                     ...form,
                     postbackDefaults: {
                       ...form.postbackDefaults,
-                      outbrainPostbackUrl: e.target.value,
+                      postbackUrlTemplate: e.target.value,
                     },
                   })
                 }
+                rows={4}
                 className="font-mono text-xs"
-                placeholder="https://tr.outbrain.com/pixel?ob_click_id={tracking_id}"
+                placeholder={DEFAULT_MEDIAGO_POSTBACK_URL}
               />
             </div>
-          )}
-          {form.conversionMethod === 'facebook_capi' && (
-            <p className="text-sm text-zinc-500">
-              Campaigns enable Facebook CAPI per pixel/token. LP should pass email, fbp, fbc in{' '}
-              <code className="text-xs">tkCallback.registerConversion()</code>.
+
+            {form.conversionMethod === 'mediago_s2s' && (
+              <>
+                <div>
+                  <Label>Mediago account name ({'{accountname}'})</Label>
+                  <Input
+                    value={String(form.postbackDefaults.mediagoAccountName ?? '')}
+                    onChange={(e) =>
+                      setForm({
+                        ...form,
+                        postbackDefaults: {
+                          ...form.postbackDefaults,
+                          mediagoAccountName: e.target.value,
+                          mediagoEnabled: true,
+                        },
+                      })
+                    }
+                    placeholder="Your Mediago account name (replaces REPLACE in Voluum)"
+                  />
+                </div>
+                <div>
+                  <Label>Default conversion type ({'{conversiontype}'})</Label>
+                  <Input
+                    type="number"
+                    value={String(form.postbackDefaults.mediagoConversionType ?? 10)}
+                    onChange={(e) =>
+                      setForm({
+                        ...form,
+                        postbackDefaults: {
+                          ...form.postbackDefaults,
+                          mediagoConversionType: parseInt(e.target.value, 10),
+                          mediagoEnabled: true,
+                          facebookEnabled: false,
+                          googleEnabled: false,
+                        },
+                      })
+                    }
+                  />
+                  <p className="text-xs text-zinc-400 mt-1">10 = Lead, 11 = Purchase (Mediago)</p>
+                </div>
+              </>
+            )}
+
+            {form.conversionMethod === 'facebook_capi' && (
+              <p className="text-sm text-zinc-500">
+                Facebook uses Conversions API (POST JSON), not a GET URL. Configure{' '}
+                <strong>Pixel ID</strong> and <strong>System User access token</strong> on each
+                campaign. LP passes email, fbp, fbc via{' '}
+                <code className="text-xs bg-zinc-100 px-1">tkCallback.registerConversion()</code>.
+              </p>
+            )}
+
+            {form.conversionMethod === 'google_offline' && (
+              <p className="text-sm text-zinc-500">
+                Google uses <code className="text-xs bg-zinc-100 px-1">{'{gclid}'}</code> from the
+                click. Set Conversion ID + Label on each campaign.
+              </p>
+            )}
+          </Card>
+
+          <Card>
+            <h3 className="text-sm font-semibold text-zinc-900 mb-2">Tokens dictionary</h3>
+            <p className="text-xs text-zinc-500 mb-3">
+              Click a token to copy. Use in the postback URL above.
             </p>
-          )}
-        </Card>
+            <div className="max-h-[420px] overflow-y-auto space-y-1">
+              {POSTBACK_TOKEN_DEFINITIONS.map((t) => (
+                <button
+                  key={t.token}
+                  type="button"
+                  onClick={() => navigator.clipboard.writeText(t.token)}
+                  className="w-full text-left px-2 py-1.5 rounded hover:bg-zinc-50 group"
+                  title={t.description}
+                >
+                  <code className="text-[11px] text-indigo-700">{t.token}</code>
+                  <span className="block text-[10px] text-zinc-400 group-hover:text-zinc-500">
+                    {t.description}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </Card>
+        </div>
       )}
 
       <div className="mt-6">

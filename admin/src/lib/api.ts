@@ -46,6 +46,7 @@ export interface ParamMapping {
   displayLabel: string;
   externalKeys: string[];
   urlMacro?: string;
+  postbackToken?: string;
   showInReports: boolean;
   priority?: number;
 }

@@ -13,6 +13,8 @@ export interface ParamMapping {
   displayLabel: string;
   externalKeys: string[];
   urlMacro?: string;
+  /** Voluum-style token in outbound postback URL, e.g. {externalid} or {var1} */
+  postbackToken?: string;
   showInReports: boolean;
   priority?: number;
 }
@@ -155,18 +157,18 @@ export function resolveParamsFromMappings(
 }
 
 export const DEFAULT_PARAM_MAPPINGS: ParamMapping[] = [
-  { internalField: 'tracking_id', displayLabel: 'Tracking ID', externalKeys: ['tracking_id', 'click_id', 'subid'], urlMacro: '${TRACKING_ID}', showInReports: true, priority: 1 },
+  { internalField: 'tracking_id', displayLabel: 'External ID 1', externalKeys: ['tracking_id', 'click_id', 'subid'], urlMacro: '${TRACKING_ID}', postbackToken: '{externalid}', showInReports: true, priority: 1 },
   { internalField: 'external_click_id', displayLabel: 'External Click ID', externalKeys: ['click_id', 'tracking_id', 'subid'], showInReports: false, priority: 2 },
   { internalField: 'gclid', displayLabel: 'GCLID', externalKeys: ['gclid'], showInReports: true, priority: 3 },
   { internalField: 'fbclid', displayLabel: 'FBCLID', externalKeys: ['fbclid'], showInReports: true, priority: 4 },
-  { internalField: 'ad_id', displayLabel: 'Ad ID', externalKeys: ['ad_id', 'adid'], urlMacro: '${AD_ID}', showInReports: true, priority: 10 },
-  { internalField: 'ad_title', displayLabel: 'Ad Title', externalKeys: ['ad_title', 'adtitle'], urlMacro: '${AD_TITLE}', showInReports: true, priority: 11 },
-  { internalField: 'campaign_external_id', displayLabel: 'Campaign ID', externalKeys: ['campaign_external_id', 'campaignid', 'campaign_id'], urlMacro: '${CAMPAIGN_ID}', showInReports: true, priority: 12 },
-  { internalField: 'publisher_name', displayLabel: 'Publisher', externalKeys: ['publisher_name', 'publishername'], urlMacro: '${PUBLISHER_NAME}', showInReports: true, priority: 13 },
-  { internalField: 'site_id', displayLabel: 'Site ID', externalKeys: ['site_id', 'siteid'], urlMacro: '${SITE_ID}', showInReports: true, priority: 14 },
-  { internalField: 'content_name', displayLabel: 'Content', externalKeys: ['content_name', 'contentname'], urlMacro: '${CONTENT_NAME}', showInReports: true, priority: 15 },
-  { internalField: 'platform', displayLabel: 'Platform', externalKeys: ['platform'], urlMacro: '${PLATFORM}', showInReports: true, priority: 16 },
-  { internalField: 'asset_id', displayLabel: 'Asset ID', externalKeys: ['asset_id', 'assetid'], urlMacro: '${ASSET_ID}', showInReports: true, priority: 17 },
+  { internalField: 'ad_id', displayLabel: 'Ad id', externalKeys: ['ad_id', 'adid'], urlMacro: '${AD_ID}', postbackToken: '{var1}', showInReports: true, priority: 10 },
+  { internalField: 'ad_title', displayLabel: 'Ad title', externalKeys: ['ad_title', 'adtitle'], urlMacro: '${AD_TITLE}', postbackToken: '{var2}', showInReports: true, priority: 11 },
+  { internalField: 'campaign_external_id', displayLabel: 'Campaign ID', externalKeys: ['campaign_external_id', 'campaignid', 'campaign_id'], urlMacro: '${CAMPAIGN_ID}', postbackToken: '{var3}', showInReports: true, priority: 12 },
+  { internalField: 'publisher_name', displayLabel: 'Publisher Name', externalKeys: ['publisher_name', 'publishername'], urlMacro: '${PUBLISHER_NAME}', postbackToken: '{var4}', showInReports: true, priority: 13 },
+  { internalField: 'site_id', displayLabel: 'Site ID', externalKeys: ['site_id', 'siteid'], urlMacro: '${SITE_ID}', postbackToken: '{var5}', showInReports: true, priority: 14 },
+  { internalField: 'content_name', displayLabel: 'Content name', externalKeys: ['content_name', 'contentname'], urlMacro: '${CONTENT_NAME}', postbackToken: '{var6}', showInReports: true, priority: 15 },
+  { internalField: 'platform', displayLabel: 'Platform', externalKeys: ['platform'], urlMacro: '${PLATFORM}', postbackToken: '{var7}', showInReports: true, priority: 16 },
+  { internalField: 'asset_id', displayLabel: 'Asset ID', externalKeys: ['asset_id', 'assetid'], urlMacro: '${ASSET_ID}', postbackToken: '{var8}', showInReports: true, priority: 17 },
   { internalField: 'utm_source', displayLabel: 'UTM Source', externalKeys: ['utm_source'], showInReports: true, priority: 20 },
   { internalField: 'utm_medium', displayLabel: 'UTM Medium', externalKeys: ['utm_medium'], showInReports: false, priority: 21 },
   { internalField: 'utm_campaign', displayLabel: 'UTM Campaign', externalKeys: ['utm_campaign', 'campaignid', 'campaign_id'], showInReports: true, priority: 22 },

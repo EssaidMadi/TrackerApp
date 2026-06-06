@@ -42,8 +42,20 @@ export class PostbacksService {
     }
 
     const config = conversion.campaign.postbackConfig;
+    const profile = conversion.campaign.trafficSourceProfile;
     const campaignContext = {
-      trafficSourceProfile: conversion.campaign.trafficSourceProfile,
+      trafficSourceProfile: profile
+        ? {
+            conversionMethod: profile.conversionMethod,
+            postbackDefaults: profile.postbackDefaults,
+            paramMappings: (profile.paramMappings || []) as never,
+          }
+        : null,
+      campaign: {
+        id: conversion.campaign.id,
+        name: conversion.campaign.name,
+        externalId: conversion.campaign.externalId,
+      },
     };
 
     let allSuccess = true;

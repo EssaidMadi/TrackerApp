@@ -1,6 +1,7 @@
 import { ConversionMethod, TrackingMode } from '@prisma/client';
 import type { ParamMapping } from '../shared/tracking/param-mapping';
 import { DEFAULT_PARAM_MAPPINGS } from '../shared/tracking/param-mapping';
+import { DEFAULT_MEDIAGO_POSTBACK_URL } from '../shared/tracking/postback-url';
 
 const MEDIAGO_CLICK_TEMPLATE =
   '{clickUrl}?adid=${AD_ID}&adtitle=${AD_TITLE}&campaignid=${CAMPAIGN_ID}&publishername=${PUBLISHER_NAME}&siteid=${SITE_ID}&contentname=${CONTENT_NAME}&platform=${PLATFORM}&assetid=${ASSET_ID}&click_id=${TRACKING_ID}';
@@ -50,7 +51,14 @@ export const SYSTEM_TRAFFIC_SOURCE_PROFILES: SeedProfile[] = [
     directAdUrlTemplate: null,
     paramMappings: DEFAULT_PARAM_MAPPINGS,
     conversionMethod: ConversionMethod.mediago_s2s,
-    postbackDefaults: { mediagoEnabled: true, mediagoConversionType: 10, facebookEnabled: false, googleEnabled: false },
+    postbackDefaults: {
+      mediagoEnabled: true,
+      mediagoConversionType: 10,
+      mediagoAccountName: '',
+      postbackUrlTemplate: DEFAULT_MEDIAGO_POSTBACK_URL,
+      facebookEnabled: false,
+      googleEnabled: false,
+    },
     setupNote: 'Put the redirect Click URL in Mediago. User clicks → tracker records visit → redirects to LP.',
     isSystem: true,
   },
@@ -62,7 +70,14 @@ export const SYSTEM_TRAFFIC_SOURCE_PROFILES: SeedProfile[] = [
     directAdUrlTemplate: null,
     paramMappings: DEFAULT_PARAM_MAPPINGS,
     conversionMethod: ConversionMethod.mediago_s2s,
-    postbackDefaults: { mediagoEnabled: true, mediagoConversionType: 10, facebookEnabled: false, googleEnabled: false },
+    postbackDefaults: {
+      mediagoEnabled: true,
+      mediagoConversionType: 10,
+      mediagoAccountName: '',
+      postbackUrlTemplate: DEFAULT_MEDIAGO_POSTBACK_URL,
+      facebookEnabled: false,
+      googleEnabled: false,
+    },
     setupNote: 'Put the redirect Click URL in your native ad network tracking field.',
     isSystem: true,
   },
@@ -78,6 +93,8 @@ export const SYSTEM_TRAFFIC_SOURCE_PROFILES: SeedProfile[] = [
       mediagoEnabled: false,
       facebookEnabled: false,
       googleEnabled: false,
+      postbackUrlTemplate:
+        'https://tr.outbrain.com/pixel?ob_click_id={externalid}&marketerId=YOUR_ID&revenue={payout}',
       outbrainPostbackUrl: 'https://tr.outbrain.com/pixel?ob_click_id={tracking_id}&marketerId=YOUR_ID',
     },
     setupNote: 'Put the redirect Click URL in Outbrain. Uses OB_CLICK_ID macro.',
@@ -97,6 +114,7 @@ export const SYSTEM_TRAFFIC_SOURCE_PROFILES: SeedProfile[] = [
       facebookEnabled: true,
       googleEnabled: false,
       requiredMetadata: ['email', 'fbp', 'fbc'],
+      postbackUrlTemplate: 'POST https://graph.facebook.com/v21.0/{pixelId}/events (Conversions API — configure pixel + token on campaign)',
     },
     setupNote:
       'Put the Direct Ad URL in Facebook. Facebook adds fbclid automatically. Add the LP script to your landing page.',
@@ -110,7 +128,13 @@ export const SYSTEM_TRAFFIC_SOURCE_PROFILES: SeedProfile[] = [
     directAdUrlTemplate: '{destinationUrl}?utm_source=google&utm_medium=cpc&utm_campaign={campaignName}',
     paramMappings: GOOGLE_MAPPINGS,
     conversionMethod: ConversionMethod.google_offline,
-    postbackDefaults: { mediagoEnabled: false, facebookEnabled: false, googleEnabled: true },
+    postbackDefaults: {
+      mediagoEnabled: false,
+      facebookEnabled: false,
+      googleEnabled: true,
+      postbackUrlTemplate:
+        'https://www.googleadservices.com/pagead/conversion/?gclid={gclid}&conversion_id={conversionId}&conversion_label={conversionLabel}&value={payout}&currency_code=EUR',
+    },
     setupNote:
       'Put the Direct Ad URL in Google Ads (final URL). Google adds gclid automatically. Add the LP script to your landing page.',
     isSystem: true,

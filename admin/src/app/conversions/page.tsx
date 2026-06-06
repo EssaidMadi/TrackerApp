@@ -173,13 +173,33 @@ export default function ConversionsPage() {
                             <span className="text-gray-400">User Agent: </span>
                             <span className="text-gray-800 break-all">{click.userAgent || '-'}</span>
                           </div>
-                          <div className="col-span-4">
-                            <span className="text-gray-500">Postbacks: </span>
-                            {c.postbackLogs.map((log) => (
-                              <Badge key={log.id} tone={log.success ? 'success' : 'danger'}>
-                                {log.network} ({log.httpStatus || '?'})
-                              </Badge>
-                            ))}
+                          <div className="col-span-4 space-y-2">
+                            <span className="text-gray-500 font-medium">Outbound postbacks sent:</span>
+                            {c.postbackLogs.length === 0 ? (
+                              <span className="text-zinc-400">None (skipped or pending)</span>
+                            ) : (
+                              c.postbackLogs.map((log) => (
+                                <div
+                                  key={log.id}
+                                  className="border border-zinc-200 rounded p-2 bg-white"
+                                >
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <Badge tone={log.success ? 'success' : 'danger'}>
+                                      {log.network} HTTP {log.httpStatus || '?'}
+                                    </Badge>
+                                    <span className="text-zinc-400">{log.method}</span>
+                                  </div>
+                                  <div className="font-mono text-[10px] break-all text-zinc-700">
+                                    {log.url || '(no url)'}
+                                  </div>
+                                  {log.response && (
+                                    <div className="text-[10px] text-zinc-500 mt-1 break-all">
+                                      Response: {log.response.slice(0, 300)}
+                                    </div>
+                                  )}
+                                </div>
+                              ))
+                            )}
                           </div>
                         </div>
                       </td>

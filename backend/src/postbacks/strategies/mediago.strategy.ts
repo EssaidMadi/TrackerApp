@@ -7,6 +7,10 @@ import {
   PostbackStrategy,
 } from '../interfaces/postback-strategy.interface';
 import { httpRequestWithRetry } from '../helpers/facebook-graph-http.helper';
+import {
+  DEFAULT_MEDIAGO_POSTBACK_URL,
+  resolvePostbackUrlTemplate,
+} from '../../shared/tracking/postback-url';
 
 @Injectable()
 export class MediagoStrategy implements PostbackStrategy {
@@ -26,6 +30,7 @@ export class MediagoStrategy implements PostbackStrategy {
     click: Click,
     conversion: Conversion,
     config: PostbackConfig,
+    campaign?: CampaignPostbackContext,
   ): Promise<PostbackResult> {
     if (!click.trackingId) {
       return {
@@ -36,18 +41,19 @@ export class MediagoStrategy implements PostbackStrategy {
       };
     }
 
-    const params = new URLSearchParams({
-      trackingid: click.trackingId,
-      conversiontype: String(config.mediagoConversionType),
-      conversionprice: String(conversion.revenue || 0),
-      includeintotalconversion: '1',
+    const profileDefaults = (campaign?.trafficSourceProfile?.postbackDefaults ||
+      {}) as Record<string, unknown>;
+    const template =
+      (profileDefaults.postbackUrlTemplate as string) || DEFAULT_MEDIAGO_POSTBACK_URL;
+
+    const url = resolvePostbackUrlTemplate(template, {
+      click,
+      conversion,
+      config,
+      profileDefaults,
+      paramMappings: campaign?.trafficSourceProfile?.paramMappings,
+      campaign: campaign?.campaign,
     });
-
-    if (click.adId) {
-      params.set('adid', click.adId);
-    }
-
-    const url = `https://sync.mediago.io/api/bidder/postback?${params.toString()}`;
 
     try {
       const { data, status } = await httpRequestWithRetry(this.http, 'get', url);
