@@ -1,0 +1,209 @@
+'use client';
+
+import { Fragment, useEffect, useState } from 'react';
+import {
+  Badge,
+  Button,
+  DataTable,
+  EmptyState,
+  Loading,
+  PageHeader,
+  TableHead,
+  Td,
+  Th,
+  statusTone,
+} from '@/components/ui';
+import { trackerApi, type Conversion } from '@/lib/api';
+
+export default function ConversionsPage() {
+  const [conversions, setConversions] = useState<Conversion[]>([]);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [expanded, setExpanded] = useState<string | null>(null);
+
+  const load = () => {
+    trackerApi
+      .getConversions({ limit: '100' })
+      .then((res) => {
+        setConversions(res.items);
+        setTotal(res.total);
+      })
+      .catch(console.error)
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  const handleRetry = async (id: string) => {
+    try {
+      await trackerApi.retryConversion(id);
+      load();
+    } catch (err) {
+      alert(String(err));
+    }
+  };
+
+  if (loading) return <Loading />;
+
+  return (
+    <div>
+      <PageHeader
+        title="Conversions"
+        description="Voluum-style export with full visit + conversion data."
+        meta={<Badge tone="neutral">{total}</Badge>}
+        action={
+          <Button
+            variant="secondary"
+            onClick={async () => {
+              try {
+                const csv = await trackerApi.exportConversionsCsv();
+                const blob = new Blob([csv], { type: 'text/csv' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `conversions-${new Date().toISOString().slice(0, 10)}.csv`;
+                a.click();
+                URL.revokeObjectURL(url);
+              } catch (err) {
+                alert(String(err));
+              }
+            }}
+          >
+            Export CSV
+          </Button>
+        }
+      />
+
+      <DataTable>
+        <table className="w-full text-xs">
+          <TableHead>
+            <Th>Visit</Th>
+            <Th>Converted</Th>
+            <Th>Click ID</Th>
+            <Th>Publisher</Th>
+            <Th>Country</Th>
+            <Th>Event</Th>
+            <Th>Revenue</Th>
+            <Th>Status</Th>
+            <Th></Th>
+          </TableHead>
+          <tbody>
+            {conversions.map((c) => {
+              const click = c.click;
+              const isExpanded = expanded === c.id;
+              return (
+                <Fragment key={c.id}>
+                  <tr
+                    className="border-b border-zinc-50 hover:bg-zinc-50/50 cursor-pointer"
+                    onClick={() => setExpanded(isExpanded ? null : c.id)}
+                  >
+                    <Td className="text-zinc-400 whitespace-nowrap">
+                      {click ? new Date(click.createdAt).toLocaleString() : '—'}
+                    </Td>
+                    <Td className="text-zinc-400 whitespace-nowrap">
+                      {new Date(c.createdAt).toLocaleString()}
+                    </Td>
+                    <Td className="font-mono">{c.clickId}</Td>
+                    <Td className="max-w-[100px] truncate">{click?.publisherName || '—'}</Td>
+                    <Td>{click?.countryCode || '—'}</Td>
+                    <Td>{c.eventType}</Td>
+                    <Td className="tabular-nums">{c.revenue}</Td>
+                    <Td>
+                      <Badge tone={statusTone(c.status)}>{c.status}</Badge>
+                    </Td>
+                    <Td>
+                      {c.status === 'failed' && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleRetry(c.id);
+                          }}
+                          className="text-indigo-600 hover:underline text-xs font-medium"
+                        >
+                          Retry
+                        </button>
+                      )}
+                    </Td>
+                  </tr>
+                  {isExpanded && click && (
+                    <tr className="bg-zinc-50/80 border-b border-zinc-100">
+                      <td colSpan={9} className="px-5 py-4">
+                        <div className="grid grid-cols-4 gap-3 text-xs">
+                          <Detail label="Browser" value={click.browserVersion || click.browser} />
+                          <Detail label="Platform" value={click.platform} />
+                          <Detail label="Ad ID" value={click.adId} />
+                          <Detail label="Ad Title" value={click.adTitle} />
+                          <Detail label="Campaign ID" value={click.campaignExternalId} />
+                          <Detail label="Site ID" value={click.siteId} />
+                          <Detail label="Content" value={click.contentName} />
+                          <Detail label="Asset ID" value={click.assetId} />
+                          <Detail label="Region" value={click.region} />
+                          <Detail label="Referrer" value={click.referrer} />
+                          <Detail label="Transaction ID" value={c.transactionId} />
+                          <Detail label="ISP" value={click.isp} />
+                          <Detail label="Mobile Carrier" value={click.mobileCarrier} />
+                          <Detail label="Connection" value={click.connectionType} />
+                          <Detail
+                            label="Bot"
+                            value={
+                              click.isBot
+                                ? `Yes (score ${click.botScore})`
+                                : `No (score ${click.botScore ?? 0})`
+                            }
+                          />
+                          <Detail label="Proxy / Datacenter" value={`${click.isProxy ? 'proxy' : '-'} / ${click.isHosting ? 'hosting' : '-'}`} />
+                          <Detail label="Accept-Language" value={click.acceptLanguage} />
+                          <Detail label="Lander" value={click.landerName} />
+                          <Detail label="Offer" value={click.offerName} />
+                          <Detail label="Traffic Source" value={click.trafficSourceName} />
+                          <Detail label="Affiliate Network" value={click.affiliateNetwork} />
+                          <Detail label="CV1 (Ad ID)" value={click.customVariable1} />
+                          <Detail label="CV2" value={click.customVariable2} />
+                          <Detail label="CV3 (Publisher)" value={click.customVariable3} />
+                          <Detail label="CV4 (Ad Title)" value={click.customVariable4} />
+                          <Detail label="CV5" value={click.customVariable5} />
+                          <Detail label="CV6 (Site)" value={click.customVariable6} />
+                          <Detail label="CV7 (Platform)" value={click.customVariable7} />
+                          <Detail label="CV8 (Asset)" value={click.customVariable8} />
+                          <div className="col-span-4">
+                            <span className="text-gray-400">User Agent: </span>
+                            <span className="text-gray-800 break-all">{click.userAgent || '-'}</span>
+                          </div>
+                          <div className="col-span-4">
+                            <span className="text-gray-500">Postbacks: </span>
+                            {c.postbackLogs.map((log) => (
+                              <Badge key={log.id} tone={log.success ? 'success' : 'danger'}>
+                                {log.network} ({log.httpStatus || '?'})
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
+              );
+            })}
+          </tbody>
+        </table>
+        {conversions.length === 0 && (
+          <EmptyState
+            title="No conversions yet"
+            description="Fire one with the Click ID from an incoming visit."
+          />
+        )}
+      </DataTable>
+    </div>
+  );
+}
+
+function Detail({ label, value }: { label: string; value?: string | null }) {
+  return (
+    <div>
+      <span className="text-gray-400">{label}: </span>
+      <span className="text-gray-800">{value || '-'}</span>
+    </div>
+  );
+}
