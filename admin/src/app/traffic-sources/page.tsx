@@ -18,12 +18,16 @@ import { trackerApi, type TrafficSourceProfile } from '@/lib/api';
 export default function TrafficSourcesPage() {
   const [profiles, setProfiles] = useState<TrafficSourceProfile[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     trackerApi
       .getTrafficSources(true)
-      .then(setProfiles)
-      .catch(console.error)
+      .then((data) => {
+        setProfiles(data);
+        setError(null);
+      })
+      .catch((err) => setError(String(err)))
       .finally(() => setLoading(false));
   }, []);
 
@@ -38,6 +42,15 @@ export default function TrafficSourcesPage() {
           </Link>
         }
       />
+
+      {error && (
+        <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg text-sm text-red-800">
+          Failed to load traffic sources: {error}
+          <p className="mt-2 text-red-600">
+            On the server run: <code className="bg-red-100 px-1">cd backend && npm run build && npm run seed:traffic-sources && pm2 restart tracker-api</code>
+          </p>
+        </div>
+      )}
 
       {loading ? (
         <Loading />

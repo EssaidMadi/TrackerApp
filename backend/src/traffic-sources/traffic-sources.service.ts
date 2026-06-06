@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   Injectable,
+  Logger,
   NotFoundException,
   OnModuleInit,
 } from '@nestjs/common';
@@ -15,11 +16,20 @@ import { CreateTrafficSourceDto, UpdateTrafficSourceDto } from './dto/traffic-so
 
 @Injectable()
 export class TrafficSourcesService implements OnModuleInit {
+  private readonly logger = new Logger(TrafficSourcesService.name);
+
   constructor(private readonly prisma: PrismaService) {}
 
   async onModuleInit() {
-    await this.seedSystemProfiles();
-    await this.linkCampaignsToProfiles();
+    try {
+      await this.seedSystemProfiles();
+      await this.linkCampaignsToProfiles();
+      const count = await this.prisma.trafficSourceProfile.count();
+      this.logger.log(`Traffic source profiles ready (${count} total)`);
+    } catch (err) {
+      this.logger.error('Failed to seed traffic source profiles', err);
+      throw err;
+    }
   }
 
   async seedSystemProfiles() {
@@ -55,7 +65,7 @@ export class TrafficSourcesService implements OnModuleInit {
 
   async linkCampaignsToProfiles() {
     const profiles = await this.prisma.trafficSourceProfile.findMany();
-    const bySlug = Object.fromEntries(profiles.map((p) => [p.slug, p.id]));
+    const bySlug = Object.fromEntries(profiles.map((p: { slug: string; id: string }) => [p.slug, p.id]));
 
     const campaigns = await this.prisma.campaign.findMany({
       where: { trafficSourceProfileId: null },

@@ -27,7 +27,7 @@ export class OutbrainStrategy implements PostbackStrategy {
     if (campaign?.trafficSourceProfile?.conversionMethod !== ConversionMethod.outbrain_s2s) {
       return false;
     }
-    const defaults = (campaign.trafficSourceProfile.postbackDefaults || {}) as Record<
+    const defaults = (campaign?.trafficSourceProfile?.postbackDefaults || {}) as Record<
       string,
       unknown
     >;
