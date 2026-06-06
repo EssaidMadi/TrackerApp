@@ -11,6 +11,8 @@ import { TrackerScriptModule } from './tracker-script/tracker-script.module';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { DomainsModule } from './domains/domains.module';
 import { TrafficSourcesModule } from './traffic-sources/traffic-sources.module';
+import { ConversionEventTypesModule } from './conversion-event-types/conversion-event-types.module';
+import { PlatformSyncModule } from './platform-sync/platform-sync.module';
 
 @Module({
   imports: [
@@ -24,6 +26,8 @@ import { TrafficSourcesModule } from './traffic-sources/traffic-sources.module';
     AnalyticsModule,
     DomainsModule,
     TrafficSourcesModule,
+    ConversionEventTypesModule,
+    PlatformSyncModule,
   ],
   controllers: [AppController],
   providers: [AppService],

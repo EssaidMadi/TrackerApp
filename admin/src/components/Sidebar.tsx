@@ -5,9 +5,12 @@ import { usePathname } from 'next/navigation';
 import { SignOutButton } from './SignOutButton';
 
 const links = [
+  { href: '/overview', label: 'Overview', icon: 'M3 3v18h18M7 14l4-4 4 4 5-6' },
   { href: '/', label: 'Campaigns', icon: 'M3 7h18M3 12h18M3 17h18' },
   { href: '/domains', label: 'Domains', icon: 'M12 3l8 4v10l-8 4-8-4V7l8-4z' },
   { href: '/traffic-sources', label: 'Traffic Sources', icon: 'M4 6h16M4 12h16M4 18h10' },
+  { href: '/integrations', label: 'Integrations', icon: 'M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83' },
+  { href: '/conversion-events', label: 'Event types', icon: 'M4 7h16M4 12h10M4 17h6' },
   { href: '/traffic', label: 'Live Traffic', icon: 'M3 3v18h18M7 14l4-4 4 4 5-6' },
   { href: '/clicks', label: 'Visits', icon: 'M15 15l6 6M10 17a7 7 0 1 1 0-14 7 7 0 0 1 0 14z' },
   { href: '/conversions', label: 'Conversions', icon: 'M9 12l2 2 4-4M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z' },

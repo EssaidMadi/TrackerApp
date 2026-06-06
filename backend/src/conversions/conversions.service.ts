@@ -10,6 +10,7 @@ import {
   getReportFieldsFromClick,
   type ParamMapping,
 } from '../shared/tracking/param-mapping';
+import { normalizeEventType } from '../common/utils/normalize-event-type';
 
 @Injectable()
 export class ConversionsService {
@@ -35,7 +36,7 @@ export class ConversionsService {
       throw new NotFoundException('Click not found for provided clickId or trackingId');
     }
 
-    const eventType = dto.eventType || 'lead';
+    const eventType = normalizeEventType(dto.eventType);
 
     const existing = await this.prisma.conversion.findUnique({
       where: { clickId_eventType: { clickId: click.clickId, eventType } },

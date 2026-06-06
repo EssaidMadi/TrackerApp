@@ -217,6 +217,71 @@ export interface VisitStats {
   conversions: number;
   sentConversions: number;
   conversionRate: string;
+  impressions?: number;
+  revenue?: number;
+  cost?: number;
+  profit?: number;
+  suspiciousVisits?: number;
+}
+
+export interface CampaignReportRow {
+  campaignId: string;
+  campaignName: string;
+  marker: string;
+  cpc: number;
+  visits: number;
+  uniqueVisits: number;
+  suspiciousVisits: number;
+  suspiciousPct: string;
+  conversions: number;
+  cost: number;
+  revenue: number;
+  profit: number;
+  epv: number;
+  cpv: number;
+  ecpc: number;
+  impressions: number;
+  platformClicks: number;
+  revenueByEvent: Record<string, number>;
+}
+
+export interface TimeseriesPoint {
+  bucket: string;
+  impressions: number;
+  visits: number;
+  clicks: number;
+  conversions: number;
+  revenue: number;
+  cost: number;
+  profit: number;
+}
+
+export interface ConversionEventType {
+  id: string;
+  slug: string;
+  displayLabel: string;
+  sortOrder: number;
+  active: boolean;
+  isSystem: boolean;
+}
+
+export interface PlatformConnection {
+  id: string;
+  platform: string;
+  label: string;
+  accountId?: string;
+  credentials: Record<string, unknown>;
+  status: string;
+  lastSyncAt?: string;
+  lastError?: string;
+}
+
+export interface CampaignPlatformMapping {
+  id: string;
+  campaignId: string;
+  platform: string;
+  externalCampaignId: string;
+  campaign?: { id: string; name: string; slug: string };
 }
 
 export interface BreakdownRow {
@@ -320,4 +385,85 @@ export const trackerApi = {
     const qs = params ? `?${new URLSearchParams(params)}` : '';
     return api<Click[]>(`/api/analytics/live${qs}`);
   },
+  getCampaignReport: (params?: Record<string, string>) => {
+    const qs = params ? `?${new URLSearchParams(params)}` : '';
+    return api<{ rows: CampaignReportRow[]; eventColumns: { slug: string; displayLabel: string }[] }>(
+      `/api/analytics/campaigns${qs}`,
+    );
+  },
+  getTimeseries: (params?: Record<string, string>) => {
+    const qs = params ? `?${new URLSearchParams(params)}` : '';
+    return api<TimeseriesPoint[]>(`/api/analytics/timeseries${qs}`);
+  },
+  exportCampaignReportCsv: async (params?: Record<string, string>) => {
+    const qs = params ? `?${new URLSearchParams(params)}` : '';
+    const res = await fetch(`/api/admin/analytics/campaigns/export/csv${qs}`);
+    if (!res.ok) throw new Error(await res.text());
+    return res.text();
+  },
+  getConversionEventTypes: () => api<ConversionEventType[]>('/api/conversion-event-types'),
+  createConversionEventType: (data: { slug?: string; displayLabel: string; sortOrder?: number }) =>
+    api<ConversionEventType>('/api/conversion-event-types', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  updateConversionEventType: (id: string, data: Partial<ConversionEventType>) =>
+    api<ConversionEventType>(`/api/conversion-event-types/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+  deleteConversionEventType: (id: string) =>
+    api<{ deleted: boolean }>(`/api/conversion-event-types/${id}`, { method: 'DELETE' }),
+  getPlatformConnections: () => api<PlatformConnection[]>('/api/integrations/connections'),
+  createPlatformConnection: (data: {
+    platform: string;
+    label: string;
+    accountId?: string;
+    credentials?: Record<string, unknown>;
+  }) =>
+    api<PlatformConnection>('/api/integrations/connections', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  updatePlatformConnection: (id: string, data: Partial<PlatformConnection>) =>
+    api<PlatformConnection>(`/api/integrations/connections/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+  deletePlatformConnection: (id: string) =>
+    api<{ deleted: boolean }>(`/api/integrations/connections/${id}`, { method: 'DELETE' }),
+  testPlatformConnection: (id: string) =>
+    api<{ ok: boolean }>(`/api/integrations/connections/${id}/test`, { method: 'POST' }),
+  syncAllPlatforms: () => api<{ synced: number }>('/api/integrations/sync', { method: 'POST' }),
+  syncPlatformConnection: (id: string) =>
+    api<number>(`/api/integrations/connections/${id}/sync`, { method: 'POST' }),
+  getCampaignMappings: () => api<CampaignPlatformMapping[]>('/api/integrations/mappings'),
+  createCampaignMapping: (data: {
+    campaignId: string;
+    platform: string;
+    externalCampaignId: string;
+  }) =>
+    api<CampaignPlatformMapping>('/api/integrations/mappings', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  deleteCampaignMapping: (id: string) =>
+    api<{ deleted: boolean }>(`/api/integrations/mappings/${id}`, { method: 'DELETE' }),
+  upsertManualSpend: (data: {
+    campaignId: string;
+    platform: string;
+    date: string;
+    impressions?: number;
+    clicks?: number;
+    spend?: number;
+  }) =>
+    api<unknown>('/api/integrations/spend/manual', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  importSpendCsv: (csv: string) =>
+    api<{ imported: number }>('/api/integrations/spend/import-csv', {
+      method: 'POST',
+      body: JSON.stringify({ csv }),
+    }),
 };
