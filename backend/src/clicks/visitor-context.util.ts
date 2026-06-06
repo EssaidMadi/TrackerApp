@@ -1,5 +1,6 @@
 import type { Request } from 'express';
 import { extractVisitorContext } from '../shared/tracking/request-context';
+import { parseVisitorIdFromCookie } from '../common/utils/visitor-id';
 
 function pickQuery(
   query: Record<string, string | string[] | undefined>,
@@ -19,9 +20,20 @@ export function buildVisitorContextFromRequest(
       ? pickQuery(query || (req.query as Record<string, string | string[] | undefined>), '__test_ip')
       : undefined;
 
-  return extractVisitorContext(req.headers, {
+  const base = extractVisitorContext(req.headers, {
     fallbackIp: req.ip,
     socketIp: req.socket?.remoteAddress,
     devOverrideIp: devOverride,
   });
+
+  const cookieVisitorId = parseVisitorIdFromCookie(req.headers.cookie);
+  const queryVisitorId = pickQuery(
+    query || (req.query as Record<string, string | string[] | undefined>),
+    'tk_vid',
+  );
+
+  return {
+    ...base,
+    visitorId: queryVisitorId || cookieVisitorId,
+  };
 }

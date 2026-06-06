@@ -83,7 +83,7 @@ describe('getReportFieldsFromClick', () => {
       },
       DEFAULT_PARAM_MAPPINGS,
     );
-    expect(rows.some((r) => r.label === 'Ad ID' && r.value === '99')).toBe(true);
-    expect(rows.some((r) => r.label === 'Publisher' && r.value === 'Pub')).toBe(true);
+    expect(rows.some((r) => r.label === 'Ad id' && r.value === '99')).toBe(true);
+    expect(rows.some((r) => r.label === 'Publisher Name' && r.value === 'Pub')).toBe(true);
   });
 });

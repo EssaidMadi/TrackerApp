@@ -5,6 +5,7 @@ import { DomainsService } from '../domains/domains.service';
 import { TrackerScriptService } from '../tracker-script/tracker-script.service';
 import { TrafficSourcesService } from '../traffic-sources/traffic-sources.service';
 import { buildClickUrlFromTemplate } from '../shared/tracking/param-mapping';
+import { getVisitStats } from '../analytics/visit-stats';
 import {
   CreateCampaignDto,
   UpdateCampaignDto,
@@ -142,19 +143,25 @@ export class CampaignsService {
   }
 
   async getStats(campaignId: string) {
-    const [clicks, conversions, sentConversions] = await Promise.all([
-      this.prisma.click.count({ where: { campaignId } }),
+    const [visitStats, conversions, sentConversions] = await Promise.all([
+      getVisitStats(this.prisma, campaignId),
       this.prisma.conversion.count({ where: { campaignId } }),
       this.prisma.conversion.count({
         where: { campaignId, status: 'sent' },
       }),
     ]);
 
+    const { visits, uniqueVisits, newVisitors, returningVisitors } = visitStats;
+
     return {
-      clicks,
+      clicks: visits,
+      visits,
+      uniqueVisits,
+      newVisitors,
+      returningVisitors,
       conversions,
       sentConversions,
-      conversionRate: clicks > 0 ? ((conversions / clicks) * 100).toFixed(2) : '0',
+      conversionRate: visits > 0 ? ((conversions / visits) * 100).toFixed(2) : '0',
     };
   }
 
@@ -250,6 +257,9 @@ export class CampaignsService {
       }
     }
 
+    const incomingConversionUrl = `${trackerBase}/postback?cid={click_id}&et=lead&payout={payout}&txid={transaction_id}`;
+    const incomingConversionUrlAlt = `${trackerBase}/postback/{click_id}?et=lead&payout={payout}`;
+
     return {
       ...campaign,
       trackerBaseUrl: trackerBase,
@@ -261,6 +271,8 @@ export class CampaignsService {
           ? trackingTemplate
           : null,
       lpScriptSnippet,
+      incomingConversionUrl,
+      incomingConversionUrlAlt,
       setupNote: profile?.setupNote || null,
       paramMappings: profile?.paramMappings || [],
       conversionMethod: profile?.conversionMethod || null,

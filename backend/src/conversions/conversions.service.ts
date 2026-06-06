@@ -87,9 +87,18 @@ export class ConversionsService {
       return v;
     };
 
+    const resolvedClickId =
+      get('cid') ||
+      clickId ||
+      get('click_id') ||
+      get('clickId') ||
+      get('tk-cid') ||
+      get('tk_cid');
+
     return this.create(
       {
-        clickId: get('cid') || clickId,
+        clickId: resolvedClickId,
+        trackingId: get('tracking_id') || get('externalid'),
         eventType: get('et') || get('event_type') || 'lead',
         transactionId: get('txid') || get('transaction_id'),
         revenue: get('payout') ? parseFloat(get('payout')!) : undefined,

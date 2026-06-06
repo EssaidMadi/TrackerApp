@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { getVisitStats } from './visit-stats';
 
 type BreakdownDimension =
   | 'publisherName'
@@ -27,17 +28,23 @@ export class AnalyticsService {
         : {}),
     };
 
-    const [clicks, conversions, sentConversions] = await Promise.all([
-      this.prisma.click.count({ where: clickWhere }),
+    const [visitStats, conversions, sentConversions] = await Promise.all([
+      getVisitStats(this.prisma, campaignId, from, to),
       this.prisma.conversion.count({ where: convWhere }),
       this.prisma.conversion.count({ where: { ...convWhere, status: 'sent' } }),
     ]);
 
+    const { visits, uniqueVisits, newVisitors, returningVisitors } = visitStats;
+
     return {
-      clicks,
+      clicks: visits,
+      visits,
+      uniqueVisits,
+      newVisitors,
+      returningVisitors,
       conversions,
       sentConversions,
-      conversionRate: clicks > 0 ? ((conversions / clicks) * 100).toFixed(2) : '0',
+      conversionRate: visits > 0 ? ((conversions / visits) * 100).toFixed(2) : '0',
     };
   }
 

@@ -33,7 +33,8 @@ export class ConversionsController {
     @Query() query: Record<string, string | string[] | undefined>,
     @Req() req: Request,
   ) {
-    const clickId = this.pickQuery(query, 'cid', 'click_id', 'clickId') || '';
+    const clickId =
+      this.pickQuery(query, 'cid', 'click_id', 'clickId', 'tk-cid', 'tk_cid') || '';
     return this.conversionsService.triggerByClickId(clickId, query, this.buildContext(req));
   }
 

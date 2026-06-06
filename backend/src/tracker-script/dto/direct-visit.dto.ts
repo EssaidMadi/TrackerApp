@@ -7,4 +7,8 @@ export class DirectVisitDto {
   @IsOptional()
   @IsObject()
   params?: Record<string, string>;
+
+  @IsOptional()
+  @IsString()
+  visitorId?: string;
 }

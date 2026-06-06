@@ -60,8 +60,8 @@ export default function ClicksPage() {
   return (
     <div>
       <PageHeader
-        title={`Clicks`}
-        description="Full visit intelligence — IP, device, UA, ISP, bot score. Click a row for details."
+        title="Visits"
+        description="All campaign visits with new vs returning visitors, device, geo, and bot signals."
         meta={<Badge tone="neutral">{total}</Badge>}
       />
 
@@ -113,6 +113,7 @@ export default function ClicksPage() {
         <DataTable>
           <table className="w-full text-xs">
             <TableHead>
+              <Th>Visitor</Th>
               <Th>Bot</Th>
               <Th>Conv</Th>
               <Th>Click ID</Th>
@@ -131,6 +132,13 @@ export default function ClicksPage() {
                       className="border-b border-zinc-50 hover:bg-zinc-50/50 cursor-pointer"
                       onClick={() => setExpanded(isExpanded ? null : c.id)}
                     >
+                      <Td>
+                        {c.isNewVisitor === false ? (
+                          <Badge tone="neutral">Returning</Badge>
+                        ) : (
+                          <Badge tone="info">New</Badge>
+                        )}
+                      </Td>
                       <Td>
                         {c.isBot ? (
                           <Badge tone="danger">Bot {c.botScore}</Badge>
@@ -159,7 +167,7 @@ export default function ClicksPage() {
                     </tr>
                     {isExpanded && (
                       <tr className="bg-zinc-50/80 border-b border-zinc-100">
-                        <td colSpan={8} className="px-5 py-4">
+                        <td colSpan={9} className="px-5 py-4">
                           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
                             {(c.reportFields?.length
                               ? c.reportFields.map((f) => (

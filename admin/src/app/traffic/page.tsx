@@ -17,7 +17,14 @@ import { trackerApi, type Click, type BreakdownRow } from '@/lib/api';
 
 export default function TrafficPage() {
   const [live, setLive] = useState<Click[]>([]);
-  const [overview, setOverview] = useState({ clicks: 0, conversions: 0, conversionRate: '0' });
+  const [overview, setOverview] = useState({
+    visits: 0,
+    uniqueVisits: 0,
+    newVisitors: 0,
+    returningVisitors: 0,
+    conversions: 0,
+    conversionRate: '0',
+  });
   const [publisherBreakdown, setPublisherBreakdown] = useState<BreakdownRow[]>([]);
   const [deviceBreakdown, setDeviceBreakdown] = useState<BreakdownRow[]>([]);
   const [platformBreakdown, setPlatformBreakdown] = useState<BreakdownRow[]>([]);
@@ -58,8 +65,11 @@ export default function TrafficPage() {
         meta={<Badge tone="success">Live</Badge>}
       />
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
-        <StatCard label="Total clicks" value={overview.clicks} />
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
+        <StatCard label="Visits" value={overview.visits} />
+        <StatCard label="Unique visits" value={overview.uniqueVisits} />
+        <StatCard label="New visitors" value={overview.newVisitors} />
+        <StatCard label="Returning" value={overview.returningVisitors} />
         <StatCard label="Conversions" value={overview.conversions} />
         <StatCard label="Conversion rate" value={`${overview.conversionRate}%`} />
       </div>

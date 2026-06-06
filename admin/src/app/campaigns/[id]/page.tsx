@@ -16,12 +16,14 @@ import {
   statusTone,
 } from '@/components/ui';
 import { PostbackPreview } from '@/components/PostbackPreview';
+import { IncomingConversionGuide } from '@/components/IncomingConversionGuide';
 import {
   trackerApi,
   type Campaign,
   type PostbackConfig,
   type TrackingDomain,
   type TrafficSourceProfile,
+  type VisitStats,
 } from '@/lib/api';
 
 type CampaignForm = {
@@ -59,7 +61,7 @@ export default function CampaignDetailPage() {
   const router = useRouter();
   const [campaign, setCampaign] = useState<Campaign | null>(null);
   const [form, setForm] = useState<CampaignForm | null>(null);
-  const [stats, setStats] = useState<{ clicks: number; conversions: number; conversionRate: string } | null>(null);
+  const [stats, setStats] = useState<VisitStats | null>(null);
   const [postback, setPostback] = useState<Partial<PostbackConfig>>({});
   const [domains, setDomains] = useState<TrackingDomain[]>([]);
   const [profiles, setProfiles] = useState<TrafficSourceProfile[]>([]);
@@ -172,8 +174,11 @@ export default function CampaignDetailPage() {
       </div>
 
       {stats && (
-        <div className="grid grid-cols-3 gap-4 mb-8">
-          <StatCard label="Clicks" value={stats.clicks} />
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
+          <StatCard label="Visits" value={stats.visits} />
+          <StatCard label="Unique visits" value={stats.uniqueVisits} />
+          <StatCard label="New visitors" value={stats.newVisitors} />
+          <StatCard label="Returning" value={stats.returningVisitors} />
           <StatCard label="Conversions" value={stats.conversions} />
           <StatCard label="Conversion rate" value={`${stats.conversionRate}%`} />
         </div>
@@ -374,6 +379,25 @@ export default function CampaignDetailPage() {
       <Card className="mb-6">
         <h2 className="text-sm font-semibold text-zinc-900 mb-3">LP Script</h2>
         <CodeBlock>{campaign.lpScriptSnippet || ''}</CodeBlock>
+      </Card>
+
+      <Card className="mb-6">
+        <h2 className="text-sm font-semibold text-zinc-900 mb-3">
+          Incoming conversion URL (tell your LP / CRM)
+        </h2>
+        {campaign.domain && (
+          <p className="text-xs text-zinc-500 mb-3">
+            Tracking domain: <span className="font-mono">{campaign.domain.hostname}</span> — this
+            campaign&apos;s unique conversion endpoint.
+          </p>
+        )}
+        <IncomingConversionGuide
+          trackerBaseUrl={campaign.trackerBaseUrl}
+          incomingConversionUrl={campaign.incomingConversionUrl}
+          incomingConversionUrlAlt={campaign.incomingConversionUrlAlt}
+          trackingMode={campaign.trackingMode}
+          lpScriptSnippet={campaign.lpScriptSnippet}
+        />
       </Card>
 
       <Card className="mb-6">

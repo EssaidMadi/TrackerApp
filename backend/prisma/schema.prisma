@@ -233,6 +233,9 @@ model Click {
   acceptLanguage String? @map("accept_language")
   referrer       String?
 
+  visitorId    String? @map("visitor_id")
+  isNewVisitor Boolean @default(true) @map("is_new_visitor")
+
   rawParams       Json? @map("raw_params")
   requestHeaders  Json? @map("request_headers")
 
@@ -241,6 +244,7 @@ model Click {
   conversions Conversion[]
 
   @@index([campaignId, createdAt])
+  @@index([campaignId, visitorId])
   @@index([trackingId])
   @@index([publisherName])
   @@index([platform])

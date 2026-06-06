@@ -91,6 +91,9 @@ export interface Campaign {
   workspaceName?: string;
   clickUrl: string;
   trackingTemplate: string;
+  /** GET URL template to fire when a lead converts (uses this campaign's tracking domain) */
+  incomingConversionUrl?: string;
+  incomingConversionUrlAlt?: string;
   postbackConfig?: PostbackConfig;
   createdAt: string;
 }
@@ -110,6 +113,8 @@ export interface PostbackConfig {
 export interface Click {
   id: string;
   clickId: string;
+  visitorId?: string;
+  isNewVisitor?: boolean;
   converted?: boolean;
   conversionStatus?: string | null;
   trackingId?: string;
@@ -203,6 +208,17 @@ export interface PostbackLog {
   response?: string;
 }
 
+export interface VisitStats {
+  clicks: number;
+  visits: number;
+  uniqueVisits: number;
+  newVisitors: number;
+  returningVisitors: number;
+  conversions: number;
+  sentConversions: number;
+  conversionRate: string;
+}
+
 export interface BreakdownRow {
   name: string;
   clicks: number;
@@ -275,9 +291,7 @@ export const trackerApi = {
       body: JSON.stringify(data),
     }),
   getStats: (id: string) =>
-    api<{ clicks: number; conversions: number; sentConversions: number; conversionRate: string }>(
-      `/api/campaigns/${id}/stats`,
-    ),
+    api<VisitStats>(`/api/campaigns/${id}/stats`),
   getClicks: (params?: Record<string, string>) => {
     const qs = params ? `?${new URLSearchParams(params)}` : '';
     return api<{ items: Click[]; total: number }>(`/api/clicks${qs}`);
@@ -296,9 +310,7 @@ export const trackerApi = {
     api<{ success: boolean }>(`/api/conversions/${id}/retry`, { method: 'POST' }),
   getAnalyticsOverview: (params?: Record<string, string>) => {
     const qs = params ? `?${new URLSearchParams(params)}` : '';
-    return api<{ clicks: number; conversions: number; sentConversions: number; conversionRate: string }>(
-      `/api/analytics/overview${qs}`,
-    );
+    return api<VisitStats>(`/api/analytics/overview${qs}`);
   },
   getBreakdown: (dimension: string, params?: Record<string, string>) => {
     const qs = new URLSearchParams({ dimension, ...params });

@@ -25,6 +25,7 @@ import { DeviceParserService } from './device-parser.service';
 import { GeoIpService } from './geo-ip.service';
 import { IpEnrichmentService } from './ip-enrichment.service';
 import { isPrivateOrLoopback } from '../shared/tracking/ip-resolver';
+import { generateVisitorId } from '../common/utils/visitor-id';
 
 @Injectable()
 export class ClicksService {
@@ -41,16 +42,26 @@ export class ClicksService {
     query: Record<string, string | string[] | undefined>,
     visitor: VisitorContext,
   ) {
-    const { clickId, campaign } = await this.recordClick(identifier, query, visitor);
-    return { clickId, campaignId: campaign.id, trackingMode: campaign.trackingMode };
+    const { clickId, campaign, visitorId, isNewVisitor } = await this.recordClick(
+      identifier,
+      query,
+      visitor,
+    );
+    return {
+      clickId,
+      campaignId: campaign.id,
+      trackingMode: campaign.trackingMode,
+      visitorId,
+      isNewVisitor,
+    };
   }
 
   async handleClick(
     identifier: string,
     query: Record<string, string | string[] | undefined>,
     visitor: VisitorContext,
-  ): Promise<string> {
-    const { clickId, campaign } = await this.recordClick(identifier, query, visitor);
+  ) {
+    const { clickId, campaign, visitorId } = await this.recordClick(identifier, query, visitor);
 
     const destination = new URL(campaign.destinationUrl);
 
@@ -66,7 +77,7 @@ export class ClicksService {
     destination.searchParams.set('click_id', clickId);
     destination.searchParams.set('tk-cid', clickId);
 
-    return destination.toString();
+    return { destination: destination.toString(), visitorId };
   }
 
   private async recordClick(
@@ -110,10 +121,19 @@ export class ClicksService {
       ),
     });
 
+    const visitorId = visitor.visitorId || generateVisitorId();
+    const priorVisit = await this.prisma.click.findFirst({
+      where: { campaignId: campaign.id, visitorId },
+      select: { id: true },
+    });
+    const isNewVisitor = !priorVisit;
+
     await this.prisma.click.create({
       data: {
         clickId,
         campaignId: campaign.id,
+        visitorId,
+        isNewVisitor,
         trackingId: params.tracking_id || null,
         externalClickId: params.external_click_id || null,
         gclid: params.gclid || null,
@@ -179,7 +199,7 @@ export class ClicksService {
 
     this.ipEnrichment.enrichClickAsync(clickId, ipAddress, userAgent, acceptLanguage);
 
-    return { clickId, campaign };
+    return { clickId, campaign, visitorId, isNewVisitor };
   }
 
   private getCampaignParamMappings(campaign: {

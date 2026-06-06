@@ -2,6 +2,7 @@ import { Controller, Get, Param, Query, Req, Res, NotFoundException } from '@nes
 import type { Request, Response } from 'express';
 import { buildVisitorContextFromRequest } from './visitor-context.util';
 import { ClicksService } from './clicks.service';
+import { buildVisitorCookie } from '../common/utils/visitor-id';
 
 const RESERVED = new Set(['api', 't', 'conversions', 'postback', 'click', 'health', 'favicon.ico']);
 
@@ -22,8 +23,13 @@ export class VoluumRedirectController {
     }
 
     const visitor = buildVisitorContextFromRequest(req, query);
-    const destination = await this.clicksService.handleClick(identifier, query, visitor);
+    const { destination, visitorId } = await this.clicksService.handleClick(
+      identifier,
+      query,
+      visitor,
+    );
 
+    res.append('Set-Cookie', buildVisitorCookie(visitorId, req.secure));
     return res.redirect(302, destination);
   }
 }

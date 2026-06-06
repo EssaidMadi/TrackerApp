@@ -28,6 +28,20 @@ export class TrackerScriptService {
     g.setItem("tk-cid-expires", h.getTime());
   }
 
+  function getVid() {
+    var m = d.cookie.match(/(^| )tk-vid=([^;]+)/);
+    if (m) return decodeURIComponent(m[2]);
+    return g.getItem("tk-vid");
+  }
+
+  function saveVid(vid) {
+    if (!vid) return;
+    var h = new Date();
+    h.setTime(h.getTime() + 31536000000);
+    d.cookie = "tk-vid=" + encodeURIComponent(vid) + "; " + secure + "samesite=Lax; expires=" + h.toUTCString() + "; path=/";
+    g.setItem("tk-vid", vid);
+  }
+
   function urlParams() {
     var p = {};
     new URLSearchParams(w.location.search).forEach(function (v, key) {
@@ -44,14 +58,17 @@ export class TrackerScriptService {
   function registerDirectVisit(campaignId) {
     if (!campaignId || getCid()) return;
     var params = urlParams();
+    var vid = getVid();
     fetch(TK_BASE + "/t/visit", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ campaign: campaignId, params: params }),
+      credentials: "include",
+      body: JSON.stringify({ campaign: campaignId, params: params, visitorId: vid || undefined }),
       keepalive: true,
     })
       .then(function (r) { return r.json(); })
       .then(function (data) {
+        if (data && data.visitorId) saveVid(data.visitorId);
         if (data && data.clickId) saveCid(data.clickId);
       })
       .catch(function () {});

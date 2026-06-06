@@ -20,6 +20,8 @@ export interface VisitorContext {
   isLocalIp?: boolean;
   userAgent?: string;
   referrer?: string;
+  /** Stable cross-visit ID from tk-vid cookie */
+  visitorId?: string;
   headers: VisitorHeaders;
 }
 
