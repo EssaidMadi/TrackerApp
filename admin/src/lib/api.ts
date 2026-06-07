@@ -396,11 +396,14 @@ export const trackerApi = {
     const qs = params ? `?${new URLSearchParams(params)}` : '';
     return api<Click[]>(`/api/analytics/live${qs}`);
   },
-  getCampaignReport: (params?: Record<string, string>) => {
+  getCampaignReport: async (params?: Record<string, string>) => {
     const qs = params ? `?${new URLSearchParams(params)}` : '';
-    return api<{ rows: CampaignReportRow[]; eventColumns: EventColumnDef[] }>(
-      `/api/analytics/campaigns${qs}`,
-    );
+    const { normalizeCampaignReport } = await import('./normalize-campaign-report');
+    const report = await api<{
+      rows: Array<Partial<CampaignReportRow> & Record<string, unknown>>;
+      eventColumns: Array<Record<string, unknown>>;
+    }>(`/api/analytics/campaigns${qs}`);
+    return normalizeCampaignReport(report);
   },
   getTimeseries: (params?: Record<string, string>) => {
     const qs = params ? `?${new URLSearchParams(params)}` : '';

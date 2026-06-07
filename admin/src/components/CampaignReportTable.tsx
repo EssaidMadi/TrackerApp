@@ -9,12 +9,17 @@ import {
   type OverviewColumnId,
 } from '@/lib/overview-columns';
 
-function fmtMoney(n: number) {
-  return `€${n.toFixed(4)}`;
+function safeNum(n: unknown): number {
+  const v = Number(n);
+  return Number.isFinite(v) ? v : 0;
 }
 
-function fmtPct(n: number) {
-  return `${n.toFixed(2)}%`;
+function fmtMoney(n: unknown) {
+  return `€${safeNum(n).toFixed(4)}`;
+}
+
+function fmtPct(n: unknown) {
+  return `${safeNum(n).toFixed(2)}%`;
 }
 
 type SortKey = OverviewColumnId;
@@ -22,8 +27,10 @@ type SortKey = OverviewColumnId;
 function getSortValue(row: CampaignReportRow, key: SortKey): number | string {
   if (key.startsWith('event:')) {
     const [, slug, kind] = key.split(':');
-    if (kind === 'count') return row.countByEvent[slug] || 0;
-    return row.revenueByEvent[slug] || 0;
+    const counts = row.countByEvent ?? {};
+    const revenues = row.revenueByEvent ?? {};
+    if (kind === 'count') return counts[slug] || 0;
+    return revenues[slug] || 0;
   }
   if (key === 'suspiciousVisits') return parseFloat(row.suspiciousPct);
   const v = (row as unknown as Record<string, unknown>)[key];
@@ -132,7 +139,7 @@ export function CampaignReportTable({
                 headers.push(
                   <Th key={`${slug}-count`}>
                     <button type="button" onClick={() => toggleSort(eventCountColumnId(slug))}>
-                      {col.countLabel}
+                      {col.countLabel || slug}
                       {sortKey === eventCountColumnId(slug) ? (sortDir === 'asc' ? ' ↑' : ' ↓') : ''}
                     </button>
                   </Th>,
@@ -142,7 +149,7 @@ export function CampaignReportTable({
                 headers.push(
                   <Th key={`${slug}-revenue`}>
                     <button type="button" onClick={() => toggleSort(eventRevenueColumnId(slug))}>
-                      {col.revenueLabel}
+                      {col.revenueLabel || `${col.countLabel || slug} revenue`}
                       {sortKey === eventRevenueColumnId(slug) ? (sortDir === 'asc' ? ' ↑' : ' ↓') : ''}
                     </button>
                   </Th>,
@@ -176,12 +183,12 @@ export function CampaignReportTable({
                 {visible('cost') && <Td className="font-mono">{fmtMoney(row.cost)}</Td>}
                 {visible('revenue') && <Td className="font-mono">{fmtMoney(row.revenue)}</Td>}
                 {visible('profit') && (
-                  <Td className={`font-mono ${row.profit < 0 ? 'text-red-600' : 'text-green-700'}`}>
+                  <Td className={`font-mono ${safeNum(row.profit) < 0 ? 'text-red-600' : 'text-green-700'}`}>
                     {fmtMoney(row.profit)}
                   </Td>
                 )}
                 {visible('roi') && (
-                  <Td className={`font-mono ${row.roi < 0 ? 'text-red-600' : 'text-green-700'}`}>
+                  <Td className={`font-mono ${safeNum(row.roi) < 0 ? 'text-red-600' : 'text-green-700'}`}>
                     {fmtPct(row.roi)}
                   </Td>
                 )}
@@ -195,13 +202,13 @@ export function CampaignReportTable({
                   const cells = [];
                   if (visible(eventCountColumnId(slug))) {
                     cells.push(
-                      <Td key={`${slug}-count`}>{row.countByEvent[slug] || 0}</Td>,
+                      <Td key={`${slug}-count`}>{row.countByEvent?.[slug] || 0}</Td>,
                     );
                   }
                   if (visible(eventRevenueColumnId(slug))) {
                     cells.push(
                       <Td key={`${slug}-revenue`} className="font-mono">
-                        {fmtMoney(row.revenueByEvent[slug] || 0)}
+                        {fmtMoney(row.revenueByEvent?.[slug] || 0)}
                       </Td>,
                     );
                   }

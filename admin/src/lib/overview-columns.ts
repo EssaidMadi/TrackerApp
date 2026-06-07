@@ -59,14 +59,17 @@ export function eventRevenueColumnId(slug: string) {
 export function buildOverviewColumns(eventColumns: EventColumnDef[]): OverviewColumnDef[] {
   const eventCols: OverviewColumnDef[] = [];
   for (const e of eventColumns) {
+    if (!e?.slug) continue;
+    const countLabel = e.countLabel || e.slug;
+    const revenueLabel = e.revenueLabel || `${countLabel} revenue`;
     eventCols.push({
       id: eventCountColumnId(e.slug),
-      label: e.countLabel,
+      label: countLabel,
       group: 'events',
     });
     eventCols.push({
       id: eventRevenueColumnId(e.slug),
-      label: e.revenueLabel,
+      label: revenueLabel,
       group: 'events',
     });
   }
