@@ -17,13 +17,46 @@ export type CampaignReportRow = {
   cost: number;
   revenue: number;
   profit: number;
+  roi: number;
+  cv: number;
   epv: number;
   cpv: number;
   ecpc: number;
+  errors: number;
+  txTransfo: number;
   impressions: number;
   platformClicks: number;
+  countByEvent: Record<string, number>;
   revenueByEvent: Record<string, number>;
 };
+
+export type EventColumnDef = {
+  slug: string;
+  countLabel: string;
+  revenueLabel: string;
+};
+
+const TRANSACTION_EVENT_SLUGS = new Set(['sale', 'sales', 'purchase']);
+
+function countLabelFromEvent(slug: string, displayLabel: string): string {
+  if (displayLabel.endsWith(' revenue')) {
+    return displayLabel.slice(0, -' revenue'.length);
+  }
+  const known: Record<string, string> = {
+    lead: 'Lead',
+    sale: 'Sales',
+    sales: 'Sales',
+    purchase: 'Purchase',
+    viewcontent: 'ViewCONTENT',
+    postalcode: 'PostalCode',
+    account_opening: 'account_opening',
+    account_validated: 'account_validated',
+    age_60: 'Age_60',
+    hearing_loss: 'Hearing_loss',
+    test: 'test',
+  };
+  return known[slug] || slug;
+}
 
 export type TimeseriesPoint = {
   bucket: string;
@@ -77,7 +110,7 @@ export class CampaignReportService {
 
   async getCampaignReport(from?: string, to?: string, workspace?: string): Promise<{
     rows: CampaignReportRow[];
-    eventColumns: { slug: string; displayLabel: string }[];
+    eventColumns: EventColumnDef[];
   }> {
     const eventTypeDefs = await this.eventTypes.findAll();
     const campaigns = await this.prisma.campaign.findMany({
@@ -93,29 +126,39 @@ export class CampaignReportService {
       const convWhere = this.convWhere(campaign.id, from, to);
       const spendWhere = this.spendWhere(campaign.id, from, to);
 
-      const [visits, suspiciousVisits, visitorGroups, legacyVisits, conversions, revenueAgg, costFromConv, spendAgg] =
-        await Promise.all([
-          this.prisma.click.count({ where: clickWhere }),
-          this.prisma.click.count({ where: { ...clickWhere, isBot: true } }),
-          this.prisma.click.groupBy({
-            by: ['visitorId'],
-            where: { ...clickWhere, visitorId: { not: null } },
-          }),
-          this.prisma.click.count({ where: { ...clickWhere, visitorId: null } }),
-          this.prisma.conversion.count({ where: convWhere }),
-          this.prisma.conversion.aggregate({
-            where: convWhere,
-            _sum: { revenue: true },
-          }),
-          this.prisma.conversion.aggregate({
-            where: convWhere,
-            _sum: { cost: true },
-          }),
-          this.prisma.campaignSpendSnapshot.aggregate({
-            where: spendWhere,
-            _sum: { spend: true, impressions: true, clicks: true },
-          }),
-        ]);
+      const [
+        visits,
+        suspiciousVisits,
+        visitorGroups,
+        legacyVisits,
+        conversions,
+        errors,
+        revenueAgg,
+        costFromConv,
+        spendAgg,
+      ] = await Promise.all([
+        this.prisma.click.count({ where: clickWhere }),
+        this.prisma.click.count({ where: { ...clickWhere, isBot: true } }),
+        this.prisma.click.groupBy({
+          by: ['visitorId'],
+          where: { ...clickWhere, visitorId: { not: null } },
+        }),
+        this.prisma.click.count({ where: { ...clickWhere, visitorId: null } }),
+        this.prisma.conversion.count({ where: convWhere }),
+        this.prisma.conversion.count({ where: { ...convWhere, status: 'failed' } }),
+        this.prisma.conversion.aggregate({
+          where: convWhere,
+          _sum: { revenue: true },
+        }),
+        this.prisma.conversion.aggregate({
+          where: convWhere,
+          _sum: { cost: true },
+        }),
+        this.prisma.campaignSpendSnapshot.aggregate({
+          where: spendWhere,
+          _sum: { spend: true, impressions: true, clicks: true },
+        }),
+      ]);
 
       const uniqueVisits = visitorGroups.length + legacyVisits;
       const revenue = revenueAgg._sum.revenue || 0;
@@ -126,15 +169,23 @@ export class CampaignReportService {
       const platformClicks = spendAgg._sum.clicks || 0;
       const profit = revenue - cost;
 
-      const revByEvent = await this.prisma.conversion.groupBy({
+      const countByEventRows = await this.prisma.conversion.groupBy({
         by: ['eventType'],
         where: convWhere,
+        _count: { _all: true },
         _sum: { revenue: true },
       });
 
+      const countByEvent: Record<string, number> = {};
       const revenueByEvent: Record<string, number> = {};
-      for (const g of revByEvent) {
+      let transactionConversions = 0;
+      for (const g of countByEventRows) {
+        const count = g._count._all;
+        countByEvent[g.eventType] = count;
         revenueByEvent[g.eventType] = g._sum.revenue || 0;
+        if (TRANSACTION_EVENT_SLUGS.has(g.eventType)) {
+          transactionConversions += count;
+        }
       }
 
       const suspiciousPct =
@@ -153,11 +204,16 @@ export class CampaignReportService {
         cost,
         revenue,
         profit,
+        roi: cost > 0 ? ((revenue - cost) / cost) * 100 : 0,
+        cv: visits > 0 ? (conversions / visits) * 100 : 0,
         epv: visits > 0 ? revenue / visits : 0,
         cpv: visits > 0 ? cost / visits : 0,
         ecpc: conversions > 0 ? cost / conversions : 0,
+        errors,
+        txTransfo: visits > 0 ? (transactionConversions / visits) * 100 : 0,
         impressions,
         platformClicks,
+        countByEvent,
         revenueByEvent,
       });
     }
@@ -167,14 +223,21 @@ export class CampaignReportService {
       for (const slug of Object.keys(row.revenueByEvent)) discovered.add(slug);
     }
 
-    const eventColumns = [
-      ...eventTypeDefs.map((e) => ({ slug: e.slug, displayLabel: e.displayLabel })),
+    const eventColumns: EventColumnDef[] = [
+      ...eventTypeDefs.map((e) => ({
+        slug: e.slug,
+        countLabel: countLabelFromEvent(e.slug, e.displayLabel),
+        revenueLabel: e.displayLabel.endsWith(' revenue')
+          ? e.displayLabel
+          : `${countLabelFromEvent(e.slug, e.displayLabel)} revenue`,
+      })),
       ...[...discovered]
         .filter((s) => !eventTypeDefs.some((e) => e.slug === s))
         .sort()
         .map((slug) => ({
           slug,
-          displayLabel: `${slug} revenue`,
+          countLabel: countLabelFromEvent(slug, `${slug} revenue`),
+          revenueLabel: `${countLabelFromEvent(slug, `${slug} revenue`)} revenue`,
         })),
     ];
 
@@ -323,12 +386,16 @@ export class CampaignReportService {
         'Cost',
         'Revenue',
         'Profit',
+        'ROI %',
+        'CV %',
         'EPV',
         'CPV',
+        'Errors',
         'eCPC',
+        'Tx Transfo %',
         'Impressions',
       ];
-      const eventHeaders = eventColumns.map((c) => c.displayLabel);
+      const eventHeaders = eventColumns.flatMap((c) => [c.countLabel, c.revenueLabel]);
       const lines = [[...baseHeaders, ...eventHeaders].join(',')];
 
       for (const row of rows) {
@@ -344,12 +411,19 @@ export class CampaignReportService {
           row.cost.toFixed(4),
           row.revenue.toFixed(4),
           row.profit.toFixed(4),
+          row.roi.toFixed(2),
+          row.cv.toFixed(2),
           row.epv.toFixed(6),
           row.cpv.toFixed(6),
+          row.errors,
           row.ecpc.toFixed(4),
+          row.txTransfo.toFixed(2),
           row.impressions,
         ];
-        const events = eventColumns.map((c) => (row.revenueByEvent[c.slug] || 0).toFixed(4));
+        const events = eventColumns.flatMap((c) => [
+          row.countByEvent[c.slug] || 0,
+          (row.revenueByEvent[c.slug] || 0).toFixed(4),
+        ]);
         lines.push([...base, ...events].join(','));
       }
 

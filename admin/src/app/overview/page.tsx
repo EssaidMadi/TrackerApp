@@ -10,7 +10,14 @@ import {
 import { DateRangePicker, buildPresets, type DateRange } from '@/components/DateRangePicker';
 import { OverviewChart } from '@/components/OverviewChart';
 import { CampaignReportTable } from '@/components/CampaignReportTable';
-import { trackerApi, type CampaignReportRow, type TimeseriesPoint, type VisitStats } from '@/lib/api';
+import { OverviewColumnPicker } from '@/components/OverviewColumnPicker';
+import { trackerApi, type CampaignReportRow, type EventColumnDef, type TimeseriesPoint, type VisitStats } from '@/lib/api';
+import {
+  buildOverviewColumns,
+  loadVisibleColumns,
+  saveVisibleColumns,
+  type OverviewColumnId,
+} from '@/lib/overview-columns';
 
 const KPI_CARDS = [
   { key: 'impressions', label: 'Impressions', color: 'bg-sky-100 text-sky-800' },
@@ -26,12 +33,13 @@ export default function OverviewPage() {
   const [range, setRange] = useState<DateRange>(buildPresets()[2]);
   const [overview, setOverview] = useState<VisitStats | null>(null);
   const [rows, setRows] = useState<CampaignReportRow[]>([]);
-  const [eventColumns, setEventColumns] = useState<{ slug: string; displayLabel: string }[]>([]);
+  const [eventColumns, setEventColumns] = useState<EventColumnDef[]>([]);
   const [timeseries, setTimeseries] = useState<TimeseriesPoint[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeMetrics, setActiveMetrics] = useState(
     () => new Set(['visits', 'conversions', 'revenue', 'cost']),
   );
+  const [visibleColumns, setVisibleColumns] = useState<Set<OverviewColumnId>>(() => new Set());
 
   const params = { from: range.from, to: range.to };
 
@@ -47,6 +55,14 @@ export default function OverviewPage() {
         setRows(report.rows);
         setEventColumns(report.eventColumns);
         setTimeseries(ts);
+        const allIds = buildOverviewColumns(report.eventColumns).map((c) => c.id);
+        setVisibleColumns((prev) => {
+          if (prev.size > 0) {
+            const kept = new Set([...prev].filter((id) => allIds.includes(id)));
+            if (kept.size > 0) return kept;
+          }
+          return loadVisibleColumns(allIds);
+        });
       })
       .catch(console.error)
       .finally(() => setLoading(false));
@@ -63,6 +79,11 @@ export default function OverviewPage() {
       else next.add(key);
       return next;
     });
+  };
+
+  const handleColumnsChange = (next: Set<OverviewColumnId>) => {
+    setVisibleColumns(next);
+    saveVisibleColumns(next);
   };
 
   const exportCsv = async () => {
@@ -123,8 +144,15 @@ export default function OverviewPage() {
         <OverviewChart data={timeseries} active={activeMetrics} onToggle={toggleMetric} />
       </Card>
 
-      <h2 className="text-sm font-semibold text-zinc-900 mb-3">Campaign performance</h2>
-      <CampaignReportTable rows={rows} eventColumns={eventColumns} />
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="text-sm font-semibold text-zinc-900">Campaign performance</h2>
+        <OverviewColumnPicker
+          eventColumns={eventColumns}
+          visible={visibleColumns}
+          onChange={handleColumnsChange}
+        />
+      </div>
+      <CampaignReportTable rows={rows} eventColumns={eventColumns} visibleColumns={visibleColumns} />
     </div>
   );
 }

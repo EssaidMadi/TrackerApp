@@ -9,10 +9,16 @@ export default function ConversionEventsPage() {
   const [loading, setLoading] = useState(true);
   const [label, setLabel] = useState('');
   const [slug, setSlug] = useState('');
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editLabel, setEditLabel] = useState('');
+  const [editSortOrder, setEditSortOrder] = useState('0');
+  const [editActive, setEditActive] = useState(true);
+  const [saving, setSaving] = useState(false);
 
   const load = () => {
+    setLoading(true);
     trackerApi
-      .getConversionEventTypes()
+      .getConversionEventTypes(true)
       .then(setItems)
       .catch(console.error)
       .finally(() => setLoading(false));
@@ -24,49 +30,163 @@ export default function ConversionEventsPage() {
 
   const add = async () => {
     if (!label) return;
-    await trackerApi.createConversionEventType({ displayLabel: label, slug: slug || undefined });
-    setLabel('');
-    setSlug('');
-    load();
+    setSaving(true);
+    try {
+      await trackerApi.createConversionEventType({ displayLabel: label, slug: slug || undefined });
+      setLabel('');
+      setSlug('');
+      load();
+    } finally {
+      setSaving(false);
+    }
   };
 
-  if (loading) return <Loading />;
+  const startEdit = (e: ConversionEventType) => {
+    setEditingId(e.id);
+    setEditLabel(e.displayLabel);
+    setEditSortOrder(String(e.sortOrder));
+    setEditActive(e.active);
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+  };
+
+  const saveEdit = async (id: string) => {
+    if (!editLabel.trim()) return;
+    setSaving(true);
+    try {
+      await trackerApi.updateConversionEventType(id, {
+        displayLabel: editLabel.trim(),
+        sortOrder: parseInt(editSortOrder, 10) || 0,
+        active: editActive,
+      });
+      setEditingId(null);
+      load();
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const remove = async (e: ConversionEventType) => {
+    const msg = e.isSystem
+      ? `"${e.displayLabel}" is a system type and will be deactivated (not deleted). Continue?`
+      : `Delete "${e.displayLabel}"? This cannot be undone.`;
+    if (!confirm(msg)) return;
+    setSaving(true);
+    try {
+      await trackerApi.deleteConversionEventType(e.id);
+      load();
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading && items.length === 0) return <Loading />;
 
   return (
     <div>
       <PageHeader
         title="Conversion event types"
-        description="Configure revenue column labels for the Overview report."
+        description="Configure revenue column labels for the Overview report. Edit labels, order, or deactivate types you no longer need."
       />
 
       <Card className="mb-6 max-w-xl space-y-3">
         <h2 className="font-semibold">Add event type</h2>
         <div>
           <Label>Display label</Label>
-          <Input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Lead revenue" />
+          <Input value={label} onChange={(ev) => setLabel(ev.target.value)} placeholder="Lead revenue" />
         </div>
         <div>
           <Label>Slug (optional)</Label>
-          <Input value={slug} onChange={(e) => setSlug(e.target.value)} placeholder="lead" className="font-mono" />
+          <Input
+            value={slug}
+            onChange={(ev) => setSlug(ev.target.value)}
+            placeholder="lead"
+            className="font-mono"
+          />
         </div>
-        <Button onClick={add}>Add</Button>
+        <Button onClick={add} disabled={saving || !label}>
+          Add
+        </Button>
       </Card>
 
       <Card>
         <table className="w-full text-sm">
           <thead>
             <tr className="text-left text-zinc-400 border-b">
-              <th className="py-2">Label</th>
-              <th className="py-2">Slug</th>
-              <th className="py-2">Active</th>
+              <th className="py-2 pr-4">Label</th>
+              <th className="py-2 pr-4">Slug</th>
+              <th className="py-2 pr-4">Order</th>
+              <th className="py-2 pr-4">Active</th>
+              <th className="py-2">Actions</th>
             </tr>
           </thead>
           <tbody>
             {items.map((e) => (
               <tr key={e.id} className="border-b border-zinc-50">
-                <td className="py-2">{e.displayLabel}</td>
-                <td className="py-2 font-mono text-xs">{e.slug}</td>
-                <td className="py-2">{e.active ? 'Yes' : 'No'}</td>
+                {editingId === e.id ? (
+                  <>
+                    <td className="py-2 pr-4">
+                      <Input
+                        value={editLabel}
+                        onChange={(ev) => setEditLabel(ev.target.value)}
+                        className="text-sm"
+                      />
+                    </td>
+                    <td className="py-2 pr-4 font-mono text-xs text-zinc-500">{e.slug}</td>
+                    <td className="py-2 pr-4">
+                      <Input
+                        type="number"
+                        value={editSortOrder}
+                        onChange={(ev) => setEditSortOrder(ev.target.value)}
+                        className="text-sm w-20"
+                      />
+                    </td>
+                    <td className="py-2 pr-4">
+                      <label className="flex items-center gap-2 text-xs">
+                        <input
+                          type="checkbox"
+                          checked={editActive}
+                          onChange={(ev) => setEditActive(ev.target.checked)}
+                        />
+                        Active
+                      </label>
+                    </td>
+                    <td className="py-2">
+                      <div className="flex gap-2">
+                        <Button size="sm" onClick={() => saveEdit(e.id)} disabled={saving}>
+                          Save
+                        </Button>
+                        <Button size="sm" variant="secondary" onClick={cancelEdit}>
+                          Cancel
+                        </Button>
+                      </div>
+                    </td>
+                  </>
+                ) : (
+                  <>
+                    <td className={`py-2 pr-4 ${!e.active ? 'text-zinc-400 line-through' : ''}`}>
+                      {e.displayLabel}
+                      {e.isSystem && (
+                        <span className="ml-2 text-[10px] text-zinc-400 uppercase">system</span>
+                      )}
+                    </td>
+                    <td className="py-2 pr-4 font-mono text-xs">{e.slug}</td>
+                    <td className="py-2 pr-4">{e.sortOrder}</td>
+                    <td className="py-2 pr-4">{e.active ? 'Yes' : 'No'}</td>
+                    <td className="py-2">
+                      <div className="flex gap-2">
+                        <Button size="sm" variant="secondary" onClick={() => startEdit(e)}>
+                          Edit
+                        </Button>
+                        <Button size="sm" variant="danger" onClick={() => remove(e)} disabled={saving}>
+                          {e.isSystem ? 'Deactivate' : 'Delete'}
+                        </Button>
+                      </div>
+                    </td>
+                  </>
+                )}
               </tr>
             ))}
           </tbody>

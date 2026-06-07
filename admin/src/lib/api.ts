@@ -224,6 +224,12 @@ export interface VisitStats {
   suspiciousVisits?: number;
 }
 
+export interface EventColumnDef {
+  slug: string;
+  countLabel: string;
+  revenueLabel: string;
+}
+
 export interface CampaignReportRow {
   campaignId: string;
   campaignName: string;
@@ -237,11 +243,16 @@ export interface CampaignReportRow {
   cost: number;
   revenue: number;
   profit: number;
+  roi: number;
+  cv: number;
   epv: number;
   cpv: number;
   ecpc: number;
+  errors: number;
+  txTransfo: number;
   impressions: number;
   platformClicks: number;
+  countByEvent: Record<string, number>;
   revenueByEvent: Record<string, number>;
 }
 
@@ -387,7 +398,7 @@ export const trackerApi = {
   },
   getCampaignReport: (params?: Record<string, string>) => {
     const qs = params ? `?${new URLSearchParams(params)}` : '';
-    return api<{ rows: CampaignReportRow[]; eventColumns: { slug: string; displayLabel: string }[] }>(
+    return api<{ rows: CampaignReportRow[]; eventColumns: EventColumnDef[] }>(
       `/api/analytics/campaigns${qs}`,
     );
   },
@@ -401,7 +412,10 @@ export const trackerApi = {
     if (!res.ok) throw new Error(await res.text());
     return res.text();
   },
-  getConversionEventTypes: () => api<ConversionEventType[]>('/api/conversion-event-types'),
+  getConversionEventTypes: (includeInactive = false) =>
+    api<ConversionEventType[]>(
+      `/api/conversion-event-types${includeInactive ? '?includeInactive=true' : ''}`,
+    ),
   createConversionEventType: (data: { slug?: string; displayLabel: string; sortOrder?: number }) =>
     api<ConversionEventType>('/api/conversion-event-types', {
       method: 'POST',
