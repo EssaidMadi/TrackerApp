@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
 import './globals.css';
 import { AppShell } from '@/components/AppShell';
+import { ChunkReloadGuard } from '@/components/ChunkReloadGuard';
 import { Sidebar } from '@/components/Sidebar';
 import { auth } from '@/auth';
 
@@ -30,6 +31,7 @@ export default async function RootLayout({
   return (
     <html lang="en">
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+        <ChunkReloadGuard />
         <Sidebar userEmail={session?.user?.email} />
         <AppShell>
           <main className="px-8 py-8 max-w-[1400px]">{children}</main>

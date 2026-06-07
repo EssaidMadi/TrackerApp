@@ -69,16 +69,27 @@ export default function CampaignDetailPage() {
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
-  const load = () => {
-    Promise.all([trackerApi.getCampaign(id), trackerApi.getStats(id)])
-      .then(([c, s]) => {
-        setCampaign(c);
-        setForm(toForm(c));
-        setStats(s);
-        if (c.postbackConfig) setPostback(c.postbackConfig);
-      })
-      .catch(console.error)
-      .finally(() => setLoading(false));
+  const load = async () => {
+    setLoading(true);
+    try {
+      const c = await trackerApi.getCampaign(id);
+      setCampaign(c);
+      setForm(toForm(c));
+      if (c.postbackConfig) setPostback(c.postbackConfig);
+    } catch (err) {
+      console.error('Failed to load campaign:', err);
+      setCampaign(null);
+      setForm(null);
+    }
+    try {
+      const s = await trackerApi.getStats(id);
+      setStats(s);
+    } catch (err) {
+      console.error('Failed to load campaign stats:', err);
+      setStats(null);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {

@@ -143,26 +143,47 @@ export class CampaignsService {
   }
 
   async getStats(campaignId: string) {
-    const [visitStats, conversions, sentConversions] = await Promise.all([
-      getVisitStats(this.prisma, campaignId),
-      this.prisma.conversion.count({ where: { campaignId } }),
-      this.prisma.conversion.count({
-        where: { campaignId, status: 'sent' },
-      }),
-    ]);
+    try {
+      const [visitStats, conversions, sentConversions] = await Promise.all([
+        getVisitStats(this.prisma, campaignId),
+        this.prisma.conversion.count({ where: { campaignId } }),
+        this.prisma.conversion.count({
+          where: { campaignId, status: 'sent' },
+        }),
+      ]);
 
-    const { visits, uniqueVisits, newVisitors, returningVisitors } = visitStats;
+      const { visits, uniqueVisits, newVisitors, returningVisitors } = visitStats;
 
-    return {
-      clicks: visits,
-      visits,
-      uniqueVisits,
-      newVisitors,
-      returningVisitors,
-      conversions,
-      sentConversions,
-      conversionRate: visits > 0 ? ((conversions / visits) * 100).toFixed(2) : '0',
-    };
+      return {
+        clicks: visits,
+        visits,
+        uniqueVisits,
+        newVisitors,
+        returningVisitors,
+        conversions,
+        sentConversions,
+        conversionRate: visits > 0 ? ((conversions / visits) * 100).toFixed(2) : '0',
+      };
+    } catch {
+      const [visits, conversions, sentConversions] = await Promise.all([
+        this.prisma.click.count({ where: { campaignId } }),
+        this.prisma.conversion.count({ where: { campaignId } }),
+        this.prisma.conversion.count({
+          where: { campaignId, status: 'sent' },
+        }),
+      ]);
+
+      return {
+        clicks: visits,
+        visits,
+        uniqueVisits: visits,
+        newVisitors: visits,
+        returningVisitors: 0,
+        conversions,
+        sentConversions,
+        conversionRate: visits > 0 ? ((conversions / visits) * 100).toFixed(2) : '0',
+      };
+    }
   }
 
   private async resolveProfile(profileId?: string, trafficSource?: TrafficSource) {
