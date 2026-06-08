@@ -63,7 +63,11 @@ export class ClicksService {
     query: Record<string, string | string[] | undefined>,
     visitor: VisitorContext,
   ) {
-    const { clickId, campaign, visitorId } = await this.recordClick(identifier, query, visitor);
+    const { clickId, campaign, visitorId, utmSource } = await this.recordClick(
+      identifier,
+      query,
+      visitor,
+    );
 
     const destination = new URL(campaign.destinationUrl);
 
@@ -79,7 +83,13 @@ export class ClicksService {
     destination.searchParams.set('click_id', clickId);
     destination.searchParams.set('tk-cid', clickId);
 
-    return { destination: destination.toString(), visitorId };
+    return {
+      destination: destination.toString(),
+      visitorId,
+      clickId,
+      utmSource,
+      trafficSource: campaign.trafficSource,
+    };
   }
 
   private async recordClick(

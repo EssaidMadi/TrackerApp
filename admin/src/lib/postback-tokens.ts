@@ -39,4 +39,4 @@ export const POSTBACK_TOKEN_DEFINITIONS: PostbackTokenDef[] = [
 ];
 
 export const DEFAULT_MEDIAGO_POSTBACK_URL =
-  'https://sync.mediago.io/api/bidder/postback?trackingid={externalid}&adid={var1}&conversiontype={conversiontype}&conversionprice={payout}&includeintotalconversion=1&accountname={accountname}';
+  'https://sync.mediago.io/api/bidder/postback?trackingid={trackingid}&adid={adid}&conversiontype={conversiontype}&conversionprice={payout}&includeintotalconversion=1&accountname={accountname}';

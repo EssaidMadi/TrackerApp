@@ -1,9 +1,17 @@
 import type { ParamMapping } from './param-mapping';
 import { resolveMediagoConversionType } from './mediago-conversion-types';
+import {
+  resolveMediagoAccountName,
+  resolveMediagoAdId,
+  resolveMediagoTrackingId,
+} from './mediago-postback';
 
 type ClickLike = Record<string, string | number | null | undefined>;
 type ConversionLike = Record<string, string | number | null | undefined>;
-type PostbackConfigLike = { mediagoConversionType?: number | null };
+type PostbackConfigLike = {
+  mediagoConversionType?: number | null;
+  mediagoAccountName?: string | null;
+};
 
 export interface PostbackTokenDef {
   token: string;
@@ -83,7 +91,7 @@ const DEFAULT_POSTBACK_TOKEN_BY_FIELD: Record<string, string> = {
 };
 
 export const DEFAULT_MEDIAGO_POSTBACK_URL =
-  'https://sync.mediago.io/api/bidder/postback?trackingid={externalid}&adid={var1}&conversiontype={conversiontype}&conversionprice={payout}&includeintotalconversion=1&accountname={accountname}';
+  'https://sync.mediago.io/api/bidder/postback?trackingid={trackingid}&adid={adid}&conversiontype={conversiontype}&conversionprice={payout}&includeintotalconversion=1&accountname={accountname}';
 
 type ResolveContext = {
   click: ClickLike;
@@ -103,9 +111,14 @@ function clickField(click: ClickLike, internalField: string): string {
 
 function buildTokenMap(ctx: ResolveContext): Record<string, string> {
   const { click, conversion, config, profileDefaults, paramMappings, campaign } = ctx;
+  const trackingId = resolveMediagoTrackingId(click);
+  const adId = resolveMediagoAdId(click);
+  const accountName = resolveMediagoAccountName(config, profileDefaults);
   const tokens: Record<string, string> = {
-    externalid: click.trackingId || click.externalClickId || '',
-    'click.id': click.clickId,
+    externalid: trackingId,
+    trackingid: trackingId,
+    adid: adId,
+    'click.id': String(click.clickId ?? ''),
     payout: String(conversion.revenue ?? 0),
     'payout.currency': 'EUR',
     conversiontype: String(
@@ -118,7 +131,7 @@ function buildTokenMap(ctx: ResolveContext): Record<string, string> {
         ),
       ),
     ),
-    accountname: String(profileDefaults?.mediagoAccountName ?? ''),
+    accountname: accountName,
     'transaction.id': conversion.transactionId || '',
     eventType: conversion.eventType || '',
     'campaign.id': campaign?.id || click.campaignId || '',

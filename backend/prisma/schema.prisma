@@ -154,6 +154,7 @@ model PostbackConfig {
 
   mediagoConversionType Int     @default(10) @map("mediago_conversion_type")
   mediagoEnabled        Boolean @default(true) @map("mediago_enabled")
+  mediagoAccountName    String? @map("mediago_account_name")
 
   facebookPixelId     String? @map("facebook_pixel_id")
   facebookAccessToken String? @map("facebook_access_token")

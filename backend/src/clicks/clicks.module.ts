@@ -6,9 +6,10 @@ import { ClicksService } from './clicks.service';
 import { DeviceParserService } from './device-parser.service';
 import { GeoIpService } from './geo-ip.service';
 import { IpEnrichmentService } from './ip-enrichment.service';
+import { ConversionsModule } from '../conversions/conversions.module';
 
 @Module({
-  imports: [HttpModule],
+  imports: [HttpModule, ConversionsModule],
   controllers: [ClicksController, VoluumRedirectController],
   providers: [ClicksService, DeviceParserService, GeoIpService, IpEnrichmentService],
   exports: [ClicksService],

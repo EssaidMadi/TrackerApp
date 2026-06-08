@@ -14,8 +14,7 @@ describe('resolvePostbackUrlTemplate', () => {
         adTitle: 'My Ad',
       } as never,
       conversion: { revenue: 25, eventType: 'Lead' } as never,
-      config: { mediagoConversionType: 10 },
-      profileDefaults: { mediagoAccountName: 'MyAccount' },
+      config: { mediagoConversionType: 10, mediagoAccountName: 'MyAccount' },
     });
 
     expect(url).toContain('sync.mediago.io/api/bidder/postback');
@@ -34,7 +33,7 @@ describe('resolvePostbackUrlTemplate', () => {
         trackingId: 'mg-track-99',
       } as never,
       conversion: { revenue: 0, eventType: 'viewcontent' } as never,
-      config: { mediagoConversionType: 10 },
+      config: { mediagoConversionType: 10, mediagoAccountName: 'MyAccount' },
     });
 
     expect(url).toContain('conversiontype=1');

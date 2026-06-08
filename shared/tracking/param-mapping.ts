@@ -157,7 +157,7 @@ export function resolveParamsFromMappings(
 }
 
 export const DEFAULT_PARAM_MAPPINGS: ParamMapping[] = [
-  { internalField: 'tracking_id', displayLabel: 'External ID 1', externalKeys: ['tracking_id', 'click_id', 'subid'], urlMacro: '${TRACKING_ID}', postbackToken: '{externalid}', showInReports: true, priority: 1 },
+  { internalField: 'tracking_id', displayLabel: 'External ID 1', externalKeys: ['tracking_id', 'trackingid', 'click_id', 'subid'], urlMacro: '${TRACKING_ID}', postbackToken: '{externalid}', showInReports: true, priority: 1 },
   { internalField: 'external_click_id', displayLabel: 'External Click ID', externalKeys: ['click_id', 'tracking_id', 'subid'], showInReports: false, priority: 2 },
   { internalField: 'gclid', displayLabel: 'GCLID', externalKeys: ['gclid'], showInReports: true, priority: 3 },
   { internalField: 'fbclid', displayLabel: 'FBCLID', externalKeys: ['fbclid'], showInReports: true, priority: 4 },

@@ -447,6 +447,18 @@ export default function CampaignDetailPage() {
               Enabled
             </label>
             <label className="text-xs text-zinc-500 block mb-1">
+              Mediago account name (<code>accountname</code>) — required for Mediago test dashboard
+            </label>
+            <input
+              type="text"
+              placeholder="my_account_name (from Mediago dashboard)"
+              value={postback.mediagoAccountName ?? ''}
+              onChange={(e) =>
+                setPostback({ ...postback, mediagoAccountName: e.target.value })
+              }
+              className="border rounded px-3 py-2 w-full mb-3"
+            />
+            <label className="text-xs text-zinc-500 block mb-1">
               Fallback conversion type (used only when event type is unknown)
             </label>
             <input
@@ -459,8 +471,10 @@ export default function CampaignDetailPage() {
               className="border rounded px-3 py-2 w-full"
             />
             <p className="text-xs text-zinc-400 mt-2">
-              Event types (<code>et=</code>) map automatically to Mediago Table 1.1 — e.g. viewcontent→1,
-              click_button→12, call_connected→14, purchase→8.
+              Postback format:{' '}
+              <code className="bg-zinc-100 px-1 text-[10px]">
+                trackingid=TRACKING_ID&amp;adid=AD_ID&amp;conversiontype=1&amp;accountname=…
+              </code>
             </p>
           </fieldset>
           )}

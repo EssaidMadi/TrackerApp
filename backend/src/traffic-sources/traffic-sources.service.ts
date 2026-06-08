@@ -201,6 +201,7 @@ export class TrafficSourcesService implements OnModuleInit {
     return {
       mediagoEnabled: Boolean(defaults.mediagoEnabled),
       mediagoConversionType: Number(defaults.mediagoConversionType ?? 10),
+      mediagoAccountName: (defaults.mediagoAccountName as string) || undefined,
       facebookEnabled: Boolean(defaults.facebookEnabled),
       facebookPixelId: (defaults.facebookPixelId as string) || undefined,
       facebookAccessToken: (defaults.facebookAccessToken as string) || undefined,

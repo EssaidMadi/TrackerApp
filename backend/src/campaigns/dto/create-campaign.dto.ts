@@ -165,6 +165,10 @@ export class UpdatePostbackConfigDto {
 
   @IsOptional()
   @IsString()
+  mediagoAccountName?: string;
+
+  @IsOptional()
+  @IsString()
   facebookPixelId?: string;
 
   @IsOptional()

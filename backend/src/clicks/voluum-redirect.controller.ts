@@ -2,13 +2,18 @@ import { Controller, Get, Param, Query, Req, Res, NotFoundException } from '@nes
 import type { Request, Response } from 'express';
 import { buildVisitorContextFromRequest } from './visitor-context.util';
 import { ClicksService } from './clicks.service';
+import { ConversionsService } from '../conversions/conversions.service';
 import { buildVisitorCookie } from '../common/utils/visitor-id';
+import { isMediagoTrafficSource } from '../shared/tracking/mediago-conversion-types';
 
 const RESERVED = new Set(['api', 't', 'conversions', 'postback', 'click', 'health', 'favicon.ico']);
 
 @Controller()
 export class VoluumRedirectController {
-  constructor(private readonly clicksService: ClicksService) {}
+  constructor(
+    private readonly clicksService: ClicksService,
+    private readonly conversions: ConversionsService,
+  ) {}
 
   /** Voluum-style: https://tracks.domain.com/{campaign-uuid}?adid=...&click_id={TRACKING_ID} */
   @Get(':identifier')
@@ -23,11 +28,30 @@ export class VoluumRedirectController {
     }
 
     const visitor = buildVisitorContextFromRequest(req, query);
-    const { destination, visitorId } = await this.clicksService.handleClick(
-      identifier,
-      query,
-      visitor,
-    );
+    const { destination, visitorId, clickId, utmSource, trafficSource } =
+      await this.clicksService.handleClick(identifier, query, visitor);
+
+    const mediago =
+      isMediagoTrafficSource(utmSource) ||
+      trafficSource === 'mediago' ||
+      isMediagoTrafficSource(
+        typeof query.utm_source === 'string'
+          ? query.utm_source
+          : Array.isArray(query.utm_source)
+            ? query.utm_source[0]
+            : undefined,
+      );
+    if (mediago && clickId) {
+      setImmediate(() => {
+        this.conversions
+          .create({
+            clickId,
+            eventType: 'viewcontent',
+            metadata: { source: 'auto_redirect_pageview', utm_source: utmSource || 'mediago' },
+          })
+          .catch(() => {});
+      });
+    }
 
     res.append('Set-Cookie', buildVisitorCookie(visitorId, req.secure));
     return res.redirect(302, destination);

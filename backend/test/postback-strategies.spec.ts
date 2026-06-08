@@ -19,14 +19,16 @@ describe('Postback strategies', () => {
           trackingId: 'mediago-track-abc',
           adId: '1000000',
         } as any,
-        { revenue: 0 } as any,
-        { mediagoEnabled: true, mediagoConversionType: 10 } as any,
+        { revenue: 0, eventType: 'lead' } as any,
+        { mediagoEnabled: true, mediagoConversionType: 10, mediagoAccountName: 'my_account' } as any,
       );
 
       expect(result.method).toBe('GET');
       expect(result.url).toContain('sync.mediago.io/api/bidder/postback');
       expect(result.url).toContain('trackingid=mediago-track-abc');
       expect(result.url).toContain('conversiontype=10');
+      expect(result.url).toContain('accountname=my_account');
+      expect(result.url).toContain('adid=1000000');
       expect(result.success).toBe(true);
     });
 
@@ -35,22 +37,35 @@ describe('Postback strategies', () => {
         {
           clickId: 'dtest123',
           trackingId: 'mediago-track-abc',
+          adId: '1000000',
         } as any,
         { revenue: 0, eventType: 'viewcontent' } as any,
-        { mediagoEnabled: true, mediagoConversionType: 10 } as any,
+        { mediagoEnabled: true, mediagoConversionType: 10, mediagoAccountName: 'my_account' } as any,
       );
 
       expect(result.url).toContain('conversiontype=1');
+      expect(result.url).toContain('accountname=my_account');
     });
 
     it('fails without tracking_id', async () => {
       const result = await strategy.send(
         { clickId: 'dtest123', trackingId: null } as any,
         { revenue: 0 } as any,
+        { mediagoEnabled: true, mediagoConversionType: 10, mediagoAccountName: 'my_account' } as any,
+      );
+
+      expect(result.success).toBe(false);
+    });
+
+    it('fails without accountname', async () => {
+      const result = await strategy.send(
+        { clickId: 'dtest123', trackingId: 'mg-1', adId: '1' } as any,
+        { revenue: 0, eventType: 'viewcontent' } as any,
         { mediagoEnabled: true, mediagoConversionType: 10 } as any,
       );
 
       expect(result.success).toBe(false);
+      expect(result.response).toContain('accountname');
     });
   });
 

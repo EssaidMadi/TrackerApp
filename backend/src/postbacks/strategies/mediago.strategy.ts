@@ -11,6 +11,10 @@ import {
   DEFAULT_MEDIAGO_POSTBACK_URL,
   resolvePostbackUrlTemplate,
 } from '../../shared/tracking/postback-url';
+import {
+  resolveMediagoAccountName,
+  resolveMediagoTrackingId,
+} from '../../shared/tracking/mediago-postback';
 
 @Injectable()
 export class MediagoStrategy implements PostbackStrategy {
@@ -32,17 +36,30 @@ export class MediagoStrategy implements PostbackStrategy {
     config: PostbackConfig,
     campaign?: CampaignPostbackContext,
   ): Promise<PostbackResult> {
-    if (!click.trackingId) {
+    const trackingId = resolveMediagoTrackingId(click);
+    if (!trackingId) {
       return {
         success: false,
         method: 'GET',
         url: '',
-        response: 'No tracking_id on click — cannot fire Mediago postback',
+        response:
+          'No Mediago TRACKING_ID on click — ensure LP URL keeps click_id=${TRACKING_ID}',
       };
     }
 
     const profileDefaults = (campaign?.trafficSourceProfile?.postbackDefaults ||
       {}) as Record<string, unknown>;
+    const accountName = resolveMediagoAccountName(config, profileDefaults);
+    if (!accountName) {
+      return {
+        success: false,
+        method: 'GET',
+        url: '',
+        response:
+          'Mediago accountname is required — set it on the campaign postback config, traffic source profile, or MEDIAGO_ACCOUNT_NAME env',
+      };
+    }
+
     const template =
       (profileDefaults.postbackUrlTemplate as string) || DEFAULT_MEDIAGO_POSTBACK_URL;
 

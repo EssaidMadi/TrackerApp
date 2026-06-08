@@ -101,6 +101,7 @@ export interface Campaign {
 export interface PostbackConfig {
   mediagoConversionType: number;
   mediagoEnabled: boolean;
+  mediagoAccountName?: string;
   facebookPixelId?: string;
   facebookAccessToken?: string;
   facebookEnabled: boolean;
