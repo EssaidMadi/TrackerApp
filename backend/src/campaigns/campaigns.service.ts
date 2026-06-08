@@ -1,4 +1,9 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { DomainStatus, Prisma, TrackingMode, TrafficSource } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { DomainsService } from '../domains/domains.service';
@@ -23,6 +28,7 @@ export class CampaignsService {
 
   async create(dto: CreateCampaignDto) {
     await this.validateDomainId(dto.domainId);
+    await this.assertUniqueCampaignRefs(dto.slug, dto.externalId);
     const profile = await this.resolveProfile(dto.trafficSourceProfileId, dto.trafficSource);
 
     const postbackDefaults = this.trafficSources.buildPostbackDefaultsFromProfile(profile);
@@ -224,6 +230,25 @@ export class CampaignsService {
       throw new BadRequestException(
         `Domain ${domain.hostname} is not verified yet. Add DNS records at GoDaddy and click Verify.`,
       );
+    }
+  }
+
+  private async assertUniqueCampaignRefs(slug: string, externalId?: string) {
+    const existingSlug = await this.prisma.campaign.findUnique({ where: { slug } });
+    if (existingSlug) {
+      throw new ConflictException(
+        `Campaign slug "${slug}" already exists. Choose a different slug or edit the existing campaign.`,
+      );
+    }
+    if (externalId) {
+      const existingExternal = await this.prisma.campaign.findUnique({
+        where: { externalId },
+      });
+      if (existingExternal) {
+        throw new ConflictException(
+          `External ID "${externalId}" is already used by campaign "${existingExternal.name}".`,
+        );
+      }
     }
   }
 
