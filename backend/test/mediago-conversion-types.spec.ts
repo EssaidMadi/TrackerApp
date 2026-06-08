@@ -2,6 +2,7 @@ import {
   MEDIAGO_CONVERSION_TYPE_BY_SLUG,
   resolveMediagoConversionType,
   isMediagoTrafficSource,
+  getUtmSourceFromQuery,
 } from '../src/shared/tracking/mediago-conversion-types';
 
 describe('Mediago conversion type map', () => {
@@ -30,8 +31,16 @@ describe('Mediago conversion type map', () => {
     expect(resolveMediagoConversionType('unknown_event', 10)).toBe(10);
   });
 
-  it('detects mediago utm_source', () => {
+  it('detects mediago utm_source case-insensitively', () => {
     expect(isMediagoTrafficSource('mediago')).toBe(true);
+    expect(isMediagoTrafficSource('Mediago')).toBe(true);
+    expect(isMediagoTrafficSource('MEDIAGO')).toBe(true);
     expect(isMediagoTrafficSource('facebook')).toBe(false);
+  });
+
+  it('reads utm_source from query regardless of casing', () => {
+    expect(getUtmSourceFromQuery({ UTM_SOURCE: 'mediago' })).toBe('mediago');
+    expect(getUtmSourceFromQuery({ utm_source: 'mediago' })).toBe('mediago');
+    expect(getUtmSourceFromQuery({ click_id: 'x' })).toBe('');
   });
 });

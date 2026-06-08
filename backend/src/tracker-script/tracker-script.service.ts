@@ -45,7 +45,7 @@ export class TrackerScriptService {
   function urlParams() {
     var p = {};
     new URLSearchParams(w.location.search).forEach(function (v, key) {
-      p[key] = v;
+      p[key.toLowerCase()] = v;
     });
     return p;
   }
@@ -81,8 +81,8 @@ export class TrackerScriptService {
   w.tkCallback.state = w.tkCallback.state || { callbackQueue: [] };
 
   function isMediagoSource(params) {
-    var src = (params.utm_source || params.utmSource || "").toLowerCase();
-    return src === "mediago" || src === "mg";
+    var src = (params.utm_source || params.utmsource || "").toLowerCase().trim();
+    return src === "mediago" || src === "mg" || src.indexOf("mediago") >= 0;
   }
 
   function trackConversion(eventType, meta) {
@@ -106,10 +106,14 @@ export class TrackerScriptService {
   }
 
   function maybeAutoViewContent() {
-    if (!isMediagoSource(urlParams())) return;
-    if (g.getItem("tk-vc-sent")) return;
-    g.setItem("tk-vc-sent", "1");
-    trackConversion("viewcontent", { source: "auto_pageview", utm_source: "mediago" });
+    var cid = getCid();
+    if (!cid) return;
+    var params = urlParams();
+    if (!isMediagoSource(params)) return;
+    var dedupeKey = "tk-vc-sent-" + cid;
+    if (g.getItem(dedupeKey)) return;
+    g.setItem(dedupeKey, "1");
+    trackConversion("viewcontent", { source: "auto_pageview", utm_source: params.utm_source || "mediago" });
   }
 
   w.tkCallback.registerConversion = function (meta) {
@@ -143,10 +147,9 @@ export class TrackerScriptService {
 
   (function init() {
     var params = new URLSearchParams(w.location.search);
-    var urlCid = params.get("tk-cid") || params.get("click_id");
+    var urlCid = params.get("tk-cid") || params.get("tk_cid");
     if (urlCid) {
       saveCid(urlCid);
-      maybeAutoViewContent();
     }
 
     var tag = currentScript();
@@ -155,6 +158,8 @@ export class TrackerScriptService {
 
     if (mode === "direct" && campaign && !getCid()) {
       registerDirectVisit(campaign);
+    } else if (getCid()) {
+      maybeAutoViewContent();
     }
   })();
 })(window, document, localStorage, encodeURIComponent);`;

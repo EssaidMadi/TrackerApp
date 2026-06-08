@@ -52,5 +52,22 @@ export function resolveMediagoConversionType(
 
 export function isMediagoTrafficSource(utmSource?: string | null): boolean {
   const src = (utmSource || '').trim().toLowerCase();
-  return src === 'mediago' || src === 'mg';
+  return (
+    src === 'mediago' ||
+    src === 'mg' ||
+    src === 'media go' ||
+    src.includes('mediago')
+  );
+}
+
+export function getUtmSourceFromQuery(
+  query: Record<string, string | string[] | undefined>,
+): string {
+  for (const [key, val] of Object.entries(query)) {
+    if (key.toLowerCase() === 'utm_source') {
+      const v = Array.isArray(val) ? val[0] : val;
+      return (v || '').trim();
+    }
+  }
+  return '';
 }

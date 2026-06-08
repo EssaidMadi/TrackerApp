@@ -3,14 +3,17 @@ import type { Request, Response } from 'express';
 import { TrackerScriptService } from './tracker-script.service';
 import { DirectVisitDto } from './dto/direct-visit.dto';
 import { ClicksService } from '../clicks/clicks.service';
+import { ConversionsService } from '../conversions/conversions.service';
 import { buildVisitorContextFromRequest } from '../clicks/visitor-context.util';
 import { buildVisitorCookie } from '../common/utils/visitor-id';
+import { isMediagoTrafficSource } from '../shared/tracking/mediago-conversion-types';
 
 @Controller('t')
 export class TrackerScriptController {
   constructor(
     private readonly trackerScript: TrackerScriptService,
     private readonly clicks: ClicksService,
+    private readonly conversions: ConversionsService,
   ) {}
 
   @Get('tracker.js')
@@ -40,6 +43,23 @@ export class TrackerScriptController {
     }
     const result = await this.clicks.registerDirectVisit(dto.campaign, query, visitor);
     res.append('Set-Cookie', buildVisitorCookie(result.visitorId, req.secure));
+
+    const mediago =
+      isMediagoTrafficSource(result.utmSource) ||
+      result.trafficSource === 'mediago' ||
+      isMediagoTrafficSource(query.utm_source);
+    if (mediago) {
+      setImmediate(() => {
+        this.conversions
+          .create({
+            clickId: result.clickId,
+            eventType: 'viewcontent',
+            metadata: { source: 'auto_server_pageview', utm_source: result.utmSource || 'mediago' },
+          })
+          .catch(() => {});
+      });
+    }
+
     return result;
   }
 

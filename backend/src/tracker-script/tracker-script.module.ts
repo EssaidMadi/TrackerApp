@@ -2,9 +2,10 @@ import { Module } from '@nestjs/common';
 import { TrackerScriptController } from './tracker-script.controller';
 import { TrackerScriptService } from './tracker-script.service';
 import { ClicksModule } from '../clicks/clicks.module';
+import { ConversionsModule } from '../conversions/conversions.module';
 
 @Module({
-  imports: [ClicksModule],
+  imports: [ClicksModule, ConversionsModule],
   controllers: [TrackerScriptController],
   providers: [TrackerScriptService],
   exports: [TrackerScriptService],

@@ -42,7 +42,7 @@ export class ClicksService {
     query: Record<string, string | string[] | undefined>,
     visitor: VisitorContext,
   ) {
-    const { clickId, campaign, visitorId, isNewVisitor } = await this.recordClick(
+    const { clickId, campaign, visitorId, isNewVisitor, utmSource } = await this.recordClick(
       identifier,
       query,
       visitor,
@@ -51,8 +51,10 @@ export class ClicksService {
       clickId,
       campaignId: campaign.id,
       trackingMode: campaign.trackingMode,
+      trafficSource: campaign.trafficSource,
       visitorId,
       isNewVisitor,
+      utmSource,
     };
   }
 
@@ -194,7 +196,7 @@ export class ClicksService {
 
     this.ipEnrichment.enrichClickAsync(clickId, ipAddress, userAgent, acceptLanguage);
 
-    return { clickId, campaign, visitorId, isNewVisitor };
+    return { clickId, campaign, visitorId, isNewVisitor, utmSource: params.utm_source || null };
   }
 
   private async resolveVisitor(
