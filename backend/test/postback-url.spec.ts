@@ -26,4 +26,30 @@ describe('resolvePostbackUrlTemplate', () => {
     expect(url).toContain('includeintotalconversion=1');
     expect(url).toContain('accountname=MyAccount');
   });
+
+  it('maps viewcontent event to Mediago type 1', () => {
+    const url = resolvePostbackUrlTemplate(DEFAULT_MEDIAGO_POSTBACK_URL, {
+      click: {
+        clickId: 'dabc123',
+        trackingId: 'mg-track-99',
+      } as never,
+      conversion: { revenue: 0, eventType: 'viewcontent' } as never,
+      config: { mediagoConversionType: 10 },
+    });
+
+    expect(url).toContain('conversiontype=1');
+  });
+
+  it('maps call_connected event to Mediago type 14', () => {
+    const url = resolvePostbackUrlTemplate(DEFAULT_MEDIAGO_POSTBACK_URL, {
+      click: {
+        clickId: 'dabc123',
+        trackingId: 'mg-track-99',
+      } as never,
+      conversion: { revenue: 0, eventType: 'call_connected' } as never,
+      config: { mediagoConversionType: 10 },
+    });
+
+    expect(url).toContain('conversiontype=14');
+  });
 });

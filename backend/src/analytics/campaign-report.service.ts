@@ -54,6 +54,9 @@ function countLabelFromEvent(slug: string, displayLabel: string): string {
     age_60: 'Age_60',
     hearing_loss: 'Hearing_loss',
     test: 'test',
+    click_button: 'Click Button',
+    call_click: 'Call click',
+    call_connected: 'Call Connected',
   };
   return known[slug] || slug;
 }

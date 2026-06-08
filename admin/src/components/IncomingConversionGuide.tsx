@@ -72,7 +72,8 @@ export function IncomingConversionGuide({
             (required)
           </li>
           <li>
-            <code>et</code> — event type: lead, sale (default: lead)
+            <code>et</code> — event type slug (maps to Mediago conversiontype): viewcontent, click_button,
+            call_click, call_connected, lead, purchase, account_opening, … (default: lead)
           </li>
           <li>
             <code>payout</code> — revenue (e.g. 25)
@@ -94,14 +95,26 @@ export function IncomingConversionGuide({
           <p className="text-xs text-zinc-500 mb-2">
             On form submit, call from your LP JavaScript (uses tk-cid cookie automatically):
           </p>
-          <CodeBlock>{`tkCallback.registerConversion({
-  email: 'user@example.com',
-  phone: '+33600000000',
-  fbp: '...',  // optional, Facebook
-  fbc: '...'   // optional, Facebook
-});`}</CodeBlock>
+          <CodeBlock>{`// Mediago: View Content fires automatically when utm_source=mediago
+
+// Button click → Mediago type 12
+tkCallback.trackClickButton();
+// or: tkCallback.registerConversion({ eventType: 'click_button' });
+
+// Call button click → type 12
+tkCallback.trackCallClick();
+
+// Call connected → type 14
+tkCallback.trackCallConnected();
+
+// Lead / form submit → type 10
+tkCallback.registerConversion({ eventType: 'lead', email: 'user@example.com' });
+
+// Sale / purchase → type 8
+tkCallback.trackPurchase({ payout: 25, transactionId: 'TX-001' });`}</CodeBlock>
           <p className="text-xs text-zinc-400 mt-2">
             Sends POST to <code>{trackerBaseUrl}/conversions/track</code> with the visit click ID.
+            Each event type maps to a Mediago <code>conversiontype</code> code on the outbound S2S postback.
           </p>
         </div>
       )}

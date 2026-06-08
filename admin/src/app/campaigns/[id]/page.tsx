@@ -17,6 +17,7 @@ import {
 } from '@/components/ui';
 import { PostbackPreview } from '@/components/PostbackPreview';
 import { IncomingConversionGuide } from '@/components/IncomingConversionGuide';
+import { MediagoConversionTypeTable } from '@/components/MediagoConversionTypeTable';
 import {
   trackerApi,
   type Campaign,
@@ -445,16 +446,29 @@ export default function CampaignDetailPage() {
               />
               Enabled
             </label>
+            <label className="text-xs text-zinc-500 block mb-1">
+              Fallback conversion type (used only when event type is unknown)
+            </label>
             <input
               type="number"
-              placeholder="Conversion type (10 = Lead)"
+              placeholder="Fallback (10 = Lead)"
               value={postback.mediagoConversionType ?? 10}
               onChange={(e) =>
                 setPostback({ ...postback, mediagoConversionType: parseInt(e.target.value, 10) })
               }
               className="border rounded px-3 py-2 w-full"
             />
+            <p className="text-xs text-zinc-400 mt-2">
+              Event types (<code>et=</code>) map automatically to Mediago Table 1.1 — e.g. viewcontent→1,
+              click_button→12, call_connected→14, purchase→8.
+            </p>
           </fieldset>
+          )}
+
+          {(campaign.conversionMethod === 'mediago_s2s' || !campaign.conversionMethod) && (
+            <div className="mt-4">
+              <MediagoConversionTypeTable compact />
+            </div>
           )}
 
           {campaign.conversionMethod === 'facebook_capi' && (

@@ -69,7 +69,10 @@ export class TrackerScriptService {
       .then(function (r) { return r.json(); })
       .then(function (data) {
         if (data && data.visitorId) saveVid(data.visitorId);
-        if (data && data.clickId) saveCid(data.clickId);
+        if (data && data.clickId) {
+          saveCid(data.clickId);
+          maybeAutoViewContent();
+        }
       })
       .catch(function () {});
   }
@@ -77,16 +80,63 @@ export class TrackerScriptService {
   w.tkCallback = w.tkCallback || function () {};
   w.tkCallback.state = w.tkCallback.state || { callbackQueue: [] };
 
-  w.tkCallback.registerConversion = function (meta) {
-    w.tkCallback.state.callbackQueue.push(meta || {});
+  function isMediagoSource(params) {
+    var src = (params.utm_source || params.utmSource || "").toLowerCase();
+    return src === "mediago" || src === "mg";
+  }
+
+  function trackConversion(eventType, meta) {
+    meta = meta || {};
     var cid = getCid();
     if (!cid) return;
+    var body = {
+      clickId: cid,
+      eventType: eventType || meta.eventType || meta.et || meta.event || "lead",
+      metadata: meta,
+    };
+    if (meta.payout != null) body.revenue = Number(meta.payout);
+    else if (meta.revenue != null) body.revenue = Number(meta.revenue);
+    if (meta.transactionId || meta.txid) body.transactionId = meta.transactionId || meta.txid;
     fetch(TK_BASE + "/conversions/track", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ clickId: cid, eventType: "lead", metadata: meta || {} }),
+      body: JSON.stringify(body),
       keepalive: true,
     }).catch(function () {});
+  }
+
+  function maybeAutoViewContent() {
+    if (!isMediagoSource(urlParams())) return;
+    if (g.getItem("tk-vc-sent")) return;
+    g.setItem("tk-vc-sent", "1");
+    trackConversion("viewcontent", { source: "auto_pageview", utm_source: "mediago" });
+  }
+
+  w.tkCallback.registerConversion = function (meta) {
+    meta = meta || {};
+    w.tkCallback.state.callbackQueue.push(meta);
+    var et = meta.eventType || meta.et || meta.event || "lead";
+    trackConversion(et, meta);
+  };
+
+  w.tkCallback.trackViewContent = function (meta) {
+    trackConversion("viewcontent", meta || {});
+  };
+
+  w.tkCallback.trackClickButton = function (meta) {
+    trackConversion("click_button", meta || {});
+  };
+
+  w.tkCallback.trackCallClick = function (meta) {
+    trackConversion("call_click", meta || {});
+  };
+
+  w.tkCallback.trackCallConnected = function (meta) {
+    trackConversion("call_connected", meta || {});
+  };
+
+  w.tkCallback.trackPurchase = function (meta) {
+    trackConversion("purchase", meta || {});
   };
 
   w.dtpCallback = w.tkCallback;
@@ -94,7 +144,10 @@ export class TrackerScriptService {
   (function init() {
     var params = new URLSearchParams(w.location.search);
     var urlCid = params.get("tk-cid") || params.get("click_id");
-    if (urlCid) saveCid(urlCid);
+    if (urlCid) {
+      saveCid(urlCid);
+      maybeAutoViewContent();
+    }
 
     var tag = currentScript();
     var campaign = tag && tag.getAttribute("data-campaign");

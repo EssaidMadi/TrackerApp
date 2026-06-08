@@ -1,5 +1,6 @@
 import type { Click, Conversion, PostbackConfig } from '@prisma/client';
 import type { ParamMapping } from './param-mapping';
+import { resolveMediagoConversionType } from './mediago-conversion-types';
 
 export interface PostbackTokenDef {
   token: string;
@@ -12,7 +13,7 @@ export const POSTBACK_TOKEN_DEFINITIONS: PostbackTokenDef[] = [
   { token: '{click.id}', description: 'Internal tracker click ID' },
   { token: '{payout}', description: 'Conversion revenue' },
   { token: '{payout.currency}', description: 'Revenue currency (EUR)' },
-  { token: '{conversiontype}', description: 'Mediago conversion type (from profile/campaign)' },
+  { token: '{conversiontype}', description: 'Mediago conversion type code (from event type, Table 1.1)' },
   { token: '{accountname}', description: 'Mediago account name' },
   { token: '{transaction.id}', description: 'Conversion transaction ID' },
   { token: '{eventType}', description: 'Conversion event type (Lead, Sale, …)' },
@@ -105,9 +106,14 @@ function buildTokenMap(ctx: ResolveContext): Record<string, string> {
     payout: String(conversion.revenue ?? 0),
     'payout.currency': 'EUR',
     conversiontype: String(
-      config?.mediagoConversionType ??
-        profileDefaults?.mediagoConversionType ??
-        10,
+      resolveMediagoConversionType(
+        conversion.eventType,
+        Number(
+          config?.mediagoConversionType ??
+            profileDefaults?.mediagoConversionType ??
+            10,
+        ),
+      ),
     ),
     accountname: String(profileDefaults?.mediagoAccountName ?? ''),
     'transaction.id': conversion.transactionId || '',

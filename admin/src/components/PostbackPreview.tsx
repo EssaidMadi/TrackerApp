@@ -19,17 +19,18 @@ export function PostbackPreview({ conversionMethod, postback }: Props) {
   const method = conversionMethod || 'mediago_s2s';
 
   if (method === 'mediago_s2s') {
-    const type = postback?.mediagoConversionType ?? 10;
+    const fallback = postback?.mediagoConversionType ?? 10;
     return (
       <div className="space-y-3 text-sm text-zinc-600">
         <p>
-          When a <strong>lead/conversion</strong> is recorded, the tracker sends a{' '}
-          <strong>GET</strong> request to Mediago:
+          When a conversion is recorded, the tracker sends a <strong>GET</strong> to Mediago. The{' '}
+          <code className="bg-zinc-100 px-1 text-xs">conversiontype</code> is chosen from the event
+          type (Table 1.1): viewcontent→1, click_button→12, call_connected→14, purchase→8, lead→10.
         </p>
         <CodeBlock>{`GET https://sync.mediago.io/api/bidder/postback
-  ?trackingid={click.trackingId}      ← from click_id in ad URL
-  &adid={click.adId}                  ← optional, if captured
-  &conversiontype=${type}               ← you configure this (10 = Lead)
+  ?trackingid={click.trackingId}      ← Mediago TRACKING_ID from ad URL
+  &adid={click.adId}
+  &conversiontype={event→code}        ← e.g. viewcontent=1, fallback=${fallback}
   &conversionprice={conversion.revenue}
   &includeintotalconversion=1`}</CodeBlock>
         <p className="text-xs text-zinc-500">

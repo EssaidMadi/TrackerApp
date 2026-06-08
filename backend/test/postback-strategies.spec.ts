@@ -30,6 +30,19 @@ describe('Postback strategies', () => {
       expect(result.success).toBe(true);
     });
 
+    it('sends viewcontent as conversiontype 1', async () => {
+      const result = await strategy.send(
+        {
+          clickId: 'dtest123',
+          trackingId: 'mediago-track-abc',
+        } as any,
+        { revenue: 0, eventType: 'viewcontent' } as any,
+        { mediagoEnabled: true, mediagoConversionType: 10 } as any,
+      );
+
+      expect(result.url).toContain('conversiontype=1');
+    });
+
     it('fails without tracking_id', async () => {
       const result = await strategy.send(
         { clickId: 'dtest123', trackingId: null } as any,
