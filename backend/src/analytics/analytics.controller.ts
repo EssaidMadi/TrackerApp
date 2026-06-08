@@ -2,6 +2,7 @@ import { Controller, Get, Query, Res, UseGuards } from '@nestjs/common';
 import type { Response } from 'express';
 import { AnalyticsService } from './analytics.service';
 import { CampaignReportService } from './campaign-report.service';
+import { FunnelAnalyticsService } from './funnel-analytics.service';
 import { ApiKeyGuard } from '../common/guards/api-key.guard';
 
 @Controller('api/analytics')
@@ -10,6 +11,7 @@ export class AnalyticsController {
   constructor(
     private readonly analytics: AnalyticsService,
     private readonly campaignReport: CampaignReportService,
+    private readonly funnelAnalytics: FunnelAnalyticsService,
   ) {}
 
   @Get('overview')
@@ -72,6 +74,32 @@ export class AnalyticsController {
     @Query('to') to?: string,
   ) {
     return this.analytics.getBreakdown(dimension || 'publisher', campaignId, from, to);
+  }
+
+  @Get('funnel')
+  getFunnel(
+    @Query('campaignId') campaignId?: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+  ) {
+    return this.funnelAnalytics.getFunnel(campaignId, from, to);
+  }
+
+  @Get('funnel/postbacks')
+  getFunnelPostbacks(
+    @Query('campaignId') campaignId?: string,
+    @Query('eventType') eventType?: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.funnelAnalytics.getRecentPostbacks(
+      campaignId,
+      eventType,
+      from,
+      to,
+      limit ? parseInt(limit, 10) : 50,
+    );
   }
 
   @Get('live')

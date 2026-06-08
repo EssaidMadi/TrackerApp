@@ -6,6 +6,7 @@ import { SignOutButton } from './SignOutButton';
 
 const links = [
   { href: '/overview', label: 'Overview', icon: 'M3 3v18h18M7 14l4-4 4 4 5-6' },
+  { href: '/funnel', label: 'LP Funnel', icon: 'M4 20V4M4 20h16M8 16l3-4 3 2 4-6' },
   { href: '/', label: 'Campaigns', icon: 'M3 7h18M3 12h18M3 17h18' },
   { href: '/domains', label: 'Domains', icon: 'M12 3l8 4v10l-8 4-8-4V7l8-4z' },
   { href: '/traffic-sources', label: 'Traffic Sources', icon: 'M4 6h16M4 12h16M4 18h10' },

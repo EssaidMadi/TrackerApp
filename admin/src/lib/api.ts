@@ -302,6 +302,46 @@ export interface BreakdownRow {
   cr: string;
 }
 
+export interface FunnelStepMetrics {
+  stepId: string;
+  label: string;
+  kind: 'visit' | 'event';
+  mediagoCode?: number;
+  mediagoLabel?: string;
+  eventSlugs: string[];
+  totalEvents: number;
+  uniqueVisitors: number;
+  rateFromVisitsPct: string;
+  dropOffFromPrevPct: string;
+  postbacksSent: number;
+  postbacksFailed: number;
+  postbacksPending: number;
+  revenue: number;
+}
+
+export interface FunnelReport {
+  visits: number;
+  uniqueVisits: number;
+  steps: FunnelStepMetrics[];
+  discoveredEvents: { slug: string; count: number; uniqueVisitors: number }[];
+}
+
+export interface FunnelPostbackRow {
+  id: string;
+  createdAt: string;
+  eventType: string;
+  stepLabel: string;
+  mediagoCode?: number;
+  clickId: string;
+  campaignName: string;
+  network: string;
+  success: boolean;
+  httpStatus: number | null;
+  url: string;
+  conversionStatus: string;
+  revenue: number;
+}
+
 export const trackerApi = {
   getDomains: () => api<TrackingDomain[]>('/api/domains'),
   getDomain: (id: string) => api<TrackingDomain>(`/api/domains/${id}`),
@@ -395,6 +435,14 @@ export const trackerApi = {
   getLiveTraffic: (params?: Record<string, string>) => {
     const qs = params ? `?${new URLSearchParams(params)}` : '';
     return api<Click[]>(`/api/analytics/live${qs}`);
+  },
+  getFunnel: (params?: Record<string, string>) => {
+    const qs = params ? `?${new URLSearchParams(params)}` : '';
+    return api<FunnelReport>(`/api/analytics/funnel${qs}`);
+  },
+  getFunnelPostbacks: (params?: Record<string, string>) => {
+    const qs = params ? `?${new URLSearchParams(params)}` : '';
+    return api<FunnelPostbackRow[]>(`/api/analytics/funnel/postbacks${qs}`);
   },
   getCampaignReport: async (params?: Record<string, string>) => {
     const qs = params ? `?${new URLSearchParams(params)}` : '';

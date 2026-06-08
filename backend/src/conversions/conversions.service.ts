@@ -112,6 +112,7 @@ export class ConversionsService {
   async list(filters: {
     campaignId?: string;
     status?: ConversionStatus;
+    eventType?: string;
     from?: string;
     to?: string;
     limit?: number;
@@ -121,6 +122,12 @@ export class ConversionsService {
 
     if (filters.campaignId) where.campaignId = filters.campaignId;
     if (filters.status) where.status = filters.status;
+    if (filters.eventType) {
+      const slugs = filters.eventType.includes(',')
+        ? filters.eventType.split(',').map((s) => normalizeEventType(s.trim()))
+        : [normalizeEventType(filters.eventType)];
+      where.eventType = slugs.length === 1 ? slugs[0] : { in: slugs };
+    }
     if (filters.from || filters.to) {
       where.createdAt = {
         ...(filters.from ? { gte: new Date(filters.from) } : {}),

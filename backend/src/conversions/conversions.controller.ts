@@ -96,6 +96,7 @@ export class ConversionsController {
   list(
     @Query('campaignId') campaignId?: string,
     @Query('status') status?: ConversionStatus,
+    @Query('eventType') eventType?: string,
     @Query('from') from?: string,
     @Query('to') to?: string,
     @Query('limit') limit?: string,
@@ -104,6 +105,7 @@ export class ConversionsController {
     return this.conversionsService.list({
       campaignId,
       status,
+      eventType,
       from,
       to,
       limit: limit ? parseInt(limit, 10) : undefined,
