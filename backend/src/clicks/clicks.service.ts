@@ -276,7 +276,12 @@ export class ClicksService {
     platform?: string;
     device?: string;
     country?: string;
+    adId?: string;
+    siteId?: string;
+    contentName?: string;
     isBot?: boolean;
+    isNewVisitor?: boolean;
+    converted?: boolean;
     limit?: number;
     offset?: number;
   }) {
@@ -287,13 +292,33 @@ export class ClicksService {
     if (filters.platform) where.platform = { equals: filters.platform, mode: 'insensitive' };
     if (filters.device) where.device = filters.device;
     if (filters.country) where.countryCode = filters.country;
+    if (filters.adId) where.adId = { contains: filters.adId, mode: 'insensitive' };
+    if (filters.siteId) where.siteId = { contains: filters.siteId, mode: 'insensitive' };
+    if (filters.contentName) {
+      where.contentName = { contains: filters.contentName, mode: 'insensitive' };
+    }
     if (filters.isBot !== undefined) where.isBot = filters.isBot;
+    if (filters.isNewVisitor !== undefined) where.isNewVisitor = filters.isNewVisitor;
 
     if (filters.from || filters.to) {
       where.createdAt = {
         ...(filters.from ? { gte: new Date(filters.from) } : {}),
         ...(filters.to ? { lte: new Date(filters.to) } : {}),
       };
+    }
+
+    if (filters.converted !== undefined) {
+      const slugs = await this.eventTypes.getConversionCountSlugs();
+      const conversionMatch: Prisma.ConversionListRelationFilter = {
+        some: {
+          eventType: slugs.length > 0 ? { in: slugs } : { in: ['__no_conversion_slugs__'] },
+        },
+      };
+      if (filters.converted) {
+        where.conversions = conversionMatch;
+      } else {
+        where.NOT = { conversions: conversionMatch };
+      }
     }
 
     const [items, total] = await Promise.all([

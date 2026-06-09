@@ -1,8 +1,9 @@
 'use client';
 
-import { Fragment, useEffect, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Badge,
+  Button,
   DataTable,
   EmptyState,
   FilterBar,
@@ -10,60 +11,251 @@ import {
   Loading,
   PageHeader,
   Select,
+  StatCard,
   TableHead,
   Td,
   Th,
 } from '@/components/ui';
-import { trackerApi, type Click, type Campaign } from '@/lib/api';
+import { DateRangePicker, buildPresets, type DateRange } from '@/components/DateRangePicker';
+import {
+  trackerApi,
+  type Click,
+  type Campaign,
+  type VisitBreakdownDimension,
+  type VisitBreakdownRow,
+  type VisitSummary,
+} from '@/lib/api';
+
+type ViewMode = 'performance' | 'log';
+
+type Filters = {
+  campaignId: string;
+  publisher: string;
+  platform: string;
+  country: string;
+  adId: string;
+  siteId: string;
+  contentName: string;
+  isBot: string;
+  isNewVisitor: string;
+  converted: string;
+};
+
+const EMPTY_FILTERS: Filters = {
+  campaignId: '',
+  publisher: '',
+  platform: '',
+  country: '',
+  adId: '',
+  siteId: '',
+  contentName: '',
+  isBot: '',
+  isNewVisitor: '',
+  converted: '',
+};
+
+const DIMENSIONS: { id: VisitBreakdownDimension; label: string }[] = [
+  { id: 'publisher', label: 'Publisher' },
+  { id: 'ad', label: 'Ad' },
+  { id: 'site', label: 'Site' },
+  { id: 'content', label: 'Content' },
+  { id: 'platform', label: 'Platform' },
+  { id: 'country', label: 'Country' },
+  { id: 'device', label: 'Device' },
+  { id: 'campaign', label: 'Campaign' },
+];
+
+type SortKey = 'visits' | 'botPct' | 'convertingVisits' | 'cr' | 'revenue';
 
 export default function ClicksPage() {
+  const [range, setRange] = useState<DateRange>(buildPresets()[2]);
+  const [viewMode, setViewMode] = useState<ViewMode>('performance');
+  const [dimension, setDimension] = useState<VisitBreakdownDimension>('publisher');
+  const [sortKey, setSortKey] = useState<SortKey>('visits');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+
   const [clicks, setClicks] = useState<Click[]>([]);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [total, setTotal] = useState(0);
+  const [summary, setSummary] = useState<VisitSummary | null>(null);
+  const [breakdown, setBreakdown] = useState<VisitBreakdownRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState<string | null>(null);
-  const [filters, setFilters] = useState({
-    campaignId: '',
-    publisher: '',
-    platform: '',
-    country: '',
-    isBot: '',
-  });
+  const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
 
-  const load = () => {
-    const params: Record<string, string> = { limit: '100' };
+  const queryParams = useMemo(() => {
+    const params: Record<string, string> = {
+      from: range.from,
+      to: range.to,
+    };
     if (filters.campaignId) params.campaignId = filters.campaignId;
     if (filters.publisher) params.publisher = filters.publisher;
     if (filters.platform) params.platform = filters.platform;
     if (filters.country) params.country = filters.country;
+    if (filters.adId) params.adId = filters.adId;
+    if (filters.siteId) params.siteId = filters.siteId;
+    if (filters.contentName) params.contentName = filters.contentName;
     if (filters.isBot) params.isBot = filters.isBot;
+    if (filters.isNewVisitor) params.isNewVisitor = filters.isNewVisitor;
+    if (filters.converted) params.converted = filters.converted;
+    return params;
+  }, [range, filters]);
 
-    trackerApi
-      .getClicks(params)
-      .then((res) => {
-        setClicks(res.items);
-        setTotal(res.total);
+  const load = useCallback(() => {
+    setLoading(true);
+    const listParams = { ...queryParams, limit: '100' };
+
+    Promise.all([
+      trackerApi.getVisitSummary(queryParams),
+      trackerApi.getVisitBreakdown(dimension, queryParams),
+      viewMode === 'log' ? trackerApi.getClicks(listParams) : Promise.resolve(null),
+    ])
+      .then(([sum, rows, clickRes]) => {
+        setSummary(sum);
+        setBreakdown(rows);
+        if (clickRes) {
+          setClicks(clickRes.items);
+          setTotal(clickRes.total);
+        }
       })
       .catch(console.error)
       .finally(() => setLoading(false));
-  };
+  }, [queryParams, dimension, viewMode]);
 
   useEffect(() => {
     trackerApi.getCampaigns().then(setCampaigns).catch(console.error);
   }, []);
 
   useEffect(() => {
-    setLoading(true);
     load();
-  }, [filters]);
+  }, [load]);
+
+  useEffect(() => {
+    if (viewMode !== 'log') return;
+    trackerApi
+      .getClicks({ ...queryParams, limit: '100' })
+      .then((res) => {
+        setClicks(res.items);
+        setTotal(res.total);
+      })
+      .catch(console.error);
+  }, [viewMode, queryParams]);
+
+  const sortedBreakdown = useMemo(() => {
+    const rows = [...breakdown];
+    rows.sort((a, b) => {
+      let av: number;
+      let bv: number;
+      if (sortKey === 'botPct') {
+        av = parseFloat(a.botPct);
+        bv = parseFloat(b.botPct);
+      } else if (sortKey === 'cr') {
+        av = parseFloat(a.cr);
+        bv = parseFloat(b.cr);
+      } else {
+        av = a[sortKey];
+        bv = b[sortKey];
+      }
+      return sortDir === 'desc' ? bv - av : av - bv;
+    });
+    return rows;
+  }, [breakdown, sortKey, sortDir]);
+
+  const toggleSort = (key: SortKey) => {
+    if (sortKey === key) {
+      setSortDir((d) => (d === 'desc' ? 'asc' : 'desc'));
+    } else {
+      setSortKey(key);
+      setSortDir('desc');
+    }
+  };
+
+  const drillIntoRow = (row: VisitBreakdownRow) => {
+    const next = { ...EMPTY_FILTERS, campaignId: filters.campaignId };
+    switch (dimension) {
+      case 'publisher':
+        next.publisher = row.key === '(unknown)' ? '' : row.key;
+        break;
+      case 'ad':
+        next.adId = row.key === '(no ad)' ? '' : row.key;
+        break;
+      case 'site':
+        next.siteId = row.key === '(unknown)' ? '' : row.key;
+        break;
+      case 'content':
+        next.contentName = row.key === '(unknown)' ? '' : row.key;
+        break;
+      case 'platform':
+        next.platform = row.key === '(unknown)' ? '' : row.key;
+        break;
+      case 'country':
+        next.country = row.key === '(unknown)' ? '' : row.key;
+        break;
+      case 'device':
+        break;
+      case 'campaign':
+        next.campaignId = row.key;
+        break;
+    }
+    setFilters(next);
+    setViewMode('log');
+  };
+
+  const qualityTone = (row: VisitBreakdownRow): 'success' | 'warning' | 'danger' | 'neutral' => {
+    const bot = parseFloat(row.botPct);
+    if (bot >= 40) return 'danger';
+    if (row.convertingVisits > 0 && bot < 25) return 'success';
+    if (bot >= 20 && row.convertingVisits === 0) return 'warning';
+    return 'neutral';
+  };
+
+  const qualityLabel = (row: VisitBreakdownRow): string => {
+    const bot = parseFloat(row.botPct);
+    if (bot >= 40) return 'High bot';
+    if (row.convertingVisits > 0 && bot < 25) return 'Converting';
+    if (bot >= 20 && row.convertingVisits === 0) return 'Low quality';
+    return 'Mixed';
+  };
 
   return (
     <div>
       <PageHeader
         title="Visits"
-        description="All campaign visits with new vs returning visitors, device, geo, and bot signals."
-        meta={<Badge tone="neutral">{total}</Badge>}
+        description="Analyze publisher and ad performance, bot traffic, and conversion quality."
+        meta={summary ? <Badge tone="neutral">{summary.visits} visits</Badge> : undefined}
       />
+
+      <div className="mb-4">
+        <DateRangePicker value={range} onChange={setRange} />
+      </div>
+
+      {summary && (
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
+          <StatCard label="Visits" value={summary.visits} />
+          <StatCard label="Human traffic" value={`${summary.humanPct}%`} hint={`${summary.humanVisits} visits`} />
+          <StatCard label="Bot traffic" value={`${summary.botPct}%`} hint={`${summary.botVisits} visits`} />
+          <StatCard label="Conversions" value={summary.conversions} />
+          <StatCard label="CV rate" value={`${summary.conversionRate}%`} />
+          <StatCard label="Revenue" value={`$${summary.revenue.toFixed(2)}`} />
+        </div>
+      )}
+
+      <div className="flex flex-wrap gap-2 mb-4">
+        <Button
+          size="sm"
+          variant={viewMode === 'performance' ? 'primary' : 'secondary'}
+          onClick={() => setViewMode('performance')}
+        >
+          Performance
+        </Button>
+        <Button
+          size="sm"
+          variant={viewMode === 'log' ? 'primary' : 'secondary'}
+          onClick={() => setViewMode('log')}
+        >
+          Visit log
+        </Button>
+      </div>
 
       <FilterBar>
         <Select
@@ -79,19 +271,31 @@ export default function ClicksPage() {
           ))}
         </Select>
         <Input
-          className="w-36"
+          className="w-32"
           placeholder="Publisher"
           value={filters.publisher}
           onChange={(e) => setFilters({ ...filters, publisher: e.target.value })}
         />
         <Input
-          className="w-32"
+          className="w-28"
+          placeholder="Ad ID"
+          value={filters.adId}
+          onChange={(e) => setFilters({ ...filters, adId: e.target.value })}
+        />
+        <Input
+          className="w-28"
+          placeholder="Site ID"
+          value={filters.siteId}
+          onChange={(e) => setFilters({ ...filters, siteId: e.target.value })}
+        />
+        <Input
+          className="w-28"
           placeholder="Platform"
           value={filters.platform}
           onChange={(e) => setFilters({ ...filters, platform: e.target.value })}
         />
         <Input
-          className="w-28"
+          className="w-24"
           placeholder="Country"
           value={filters.country}
           onChange={(e) => setFilters({ ...filters, country: e.target.value })}
@@ -105,10 +309,122 @@ export default function ClicksPage() {
           <option value="false">Humans only</option>
           <option value="true">Bots only</option>
         </Select>
+        <Select
+          className="w-auto"
+          value={filters.converted}
+          onChange={(e) => setFilters({ ...filters, converted: e.target.value })}
+        >
+          <option value="">All conversions</option>
+          <option value="true">Converted</option>
+          <option value="false">Not converted</option>
+        </Select>
+        <Select
+          className="w-auto"
+          value={filters.isNewVisitor}
+          onChange={(e) => setFilters({ ...filters, isNewVisitor: e.target.value })}
+        >
+          <option value="">All visitors</option>
+          <option value="true">New only</option>
+          <option value="false">Returning only</option>
+        </Select>
+        {(filters.publisher ||
+          filters.adId ||
+          filters.siteId ||
+          filters.platform ||
+          filters.country ||
+          filters.isBot ||
+          filters.converted ||
+          filters.isNewVisitor) && (
+          <Button size="sm" variant="secondary" onClick={() => setFilters({ ...EMPTY_FILTERS, campaignId: filters.campaignId })}>
+            Clear filters
+          </Button>
+        )}
       </FilterBar>
 
       {loading ? (
         <Loading />
+      ) : viewMode === 'performance' ? (
+        <>
+          <div className="flex flex-wrap items-center gap-2 mb-3">
+            <span className="text-xs text-zinc-500">Group by</span>
+            {DIMENSIONS.map((d) => (
+              <Button
+                key={d.id}
+                size="sm"
+                variant={dimension === d.id ? 'primary' : 'secondary'}
+                onClick={() => setDimension(d.id)}
+              >
+                {d.label}
+              </Button>
+            ))}
+          </div>
+
+          <DataTable>
+            <table className="w-full text-xs">
+              <TableHead>
+                <Th>{DIMENSIONS.find((d) => d.id === dimension)?.label}</Th>
+                <Th>
+                  <SortHeader label="Visits" sortKey="visits" active={sortKey} dir={sortDir} onSort={toggleSort} />
+                </Th>
+                <Th>Unique</Th>
+                <Th>
+                  <SortHeader label="Bots" sortKey="botPct" active={sortKey} dir={sortDir} onSort={toggleSort} />
+                </Th>
+                <Th>Bot %</Th>
+                <Th>Humans</Th>
+                <Th>
+                  <SortHeader
+                    label="Conv. visits"
+                    sortKey="convertingVisits"
+                    active={sortKey}
+                    dir={sortDir}
+                    onSort={toggleSort}
+                  />
+                </Th>
+                <Th>
+                  <SortHeader label="CR %" sortKey="cr" active={sortKey} dir={sortDir} onSort={toggleSort} />
+                </Th>
+                <Th>
+                  <SortHeader label="Revenue" sortKey="revenue" active={sortKey} dir={sortDir} onSort={toggleSort} />
+                </Th>
+                <Th>Quality</Th>
+              </TableHead>
+              <tbody>
+                {sortedBreakdown.map((row) => (
+                  <tr
+                    key={row.key}
+                    className="border-b border-zinc-50 hover:bg-zinc-50/50 cursor-pointer"
+                    onClick={() => drillIntoRow(row)}
+                    title="Click to filter visit log"
+                  >
+                    <Td className="max-w-[200px] truncate font-medium">{row.label}</Td>
+                    <Td>{row.visits}</Td>
+                    <Td>{row.uniqueVisitors}</Td>
+                    <Td>{row.botVisits}</Td>
+                    <Td>
+                      <span className={parseFloat(row.botPct) >= 30 ? 'text-red-600 font-medium' : ''}>
+                        {row.botPct}%
+                      </span>
+                    </Td>
+                    <Td>{row.humanVisits}</Td>
+                    <Td>{row.convertingVisits}</Td>
+                    <Td>{row.cr}%</Td>
+                    <Td>${row.revenue.toFixed(2)}</Td>
+                    <Td>
+                      <Badge tone={qualityTone(row)}>{qualityLabel(row)}</Badge>
+                    </Td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {sortedBreakdown.length === 0 && (
+              <EmptyState
+                title="No visits in this range"
+                description="Adjust the date range or filters to see performance data."
+              />
+            )}
+          </DataTable>
+        </>
       ) : (
         <DataTable>
           <table className="w-full text-xs">
@@ -118,6 +434,8 @@ export default function ClicksPage() {
               <Th>Conv</Th>
               <Th>Click ID</Th>
               <Th>Publisher</Th>
+              <Th>Ad</Th>
+              <Th>Site</Th>
               <Th>Device</Th>
               <Th>Country</Th>
               <Th>IP</Th>
@@ -154,7 +472,11 @@ export default function ClicksPage() {
                         )}
                       </Td>
                       <Td className="font-mono">{c.clickId}</Td>
-                      <Td className="max-w-[120px] truncate">{c.publisherName || '—'}</Td>
+                      <Td className="max-w-[100px] truncate">{c.publisherName || '—'}</Td>
+                      <Td className="max-w-[100px] truncate">
+                        <span title={c.adTitle || c.adId || undefined}>{c.adId || '—'}</span>
+                      </Td>
+                      <Td className="max-w-[80px] truncate">{c.siteId || '—'}</Td>
                       <Td>{c.device || '—'}</Td>
                       <Td>{c.countryCode || '—'}</Td>
                       <Td className="font-mono">
@@ -167,7 +489,7 @@ export default function ClicksPage() {
                     </tr>
                     {isExpanded && (
                       <tr className="bg-zinc-50/80 border-b border-zinc-100">
-                        <td colSpan={9} className="px-5 py-4">
+                        <td colSpan={11} className="px-5 py-4">
                           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
                             {(c.reportFields?.length
                               ? c.reportFields.map((f) => (
@@ -179,6 +501,9 @@ export default function ClicksPage() {
                                   <Detail key="ad" label="Ad ID" value={c.adId} />,
                                   <Detail key="plat" label="Platform" value={c.platform} />,
                                 ])}
+                            <Detail label="Ad title" value={c.adTitle} />
+                            <Detail label="Site ID" value={c.siteId} />
+                            <Detail label="Content" value={c.contentName} />
                             <Detail label="OS / Model" value={`${c.os || '—'} / ${c.model || c.brand || '—'}`} />
                             <Detail label="Browser" value={c.browserVersion || c.browser} />
                             <Detail label="City" value={c.city} />
@@ -198,11 +523,38 @@ export default function ClicksPage() {
             </tbody>
           </table>
           {clicks.length === 0 && (
-            <EmptyState title="No clicks recorded" description="Traffic will appear here after your first visit." />
+            <EmptyState title="No visits match filters" description="Try widening the date range or clearing filters." />
+          )}
+          {total > clicks.length && (
+            <p className="text-xs text-zinc-400 px-5 py-3">
+              Showing {clicks.length} of {total} visits. Narrow filters to inspect specific traffic.
+            </p>
           )}
         </DataTable>
       )}
     </div>
+  );
+}
+
+function SortHeader({
+  label,
+  sortKey,
+  active,
+  dir,
+  onSort,
+}: {
+  label: string;
+  sortKey: SortKey;
+  active: SortKey;
+  dir: 'asc' | 'desc';
+  onSort: (key: SortKey) => void;
+}) {
+  const indicator = active === sortKey ? (dir === 'desc' ? ' ↓' : ' ↑') : '';
+  return (
+    <button type="button" className="cursor-pointer hover:text-zinc-600" onClick={() => onSort(sortKey)}>
+      {label}
+      {indicator}
+    </button>
   );
 }
 

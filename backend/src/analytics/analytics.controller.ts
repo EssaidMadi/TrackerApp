@@ -4,6 +4,7 @@ import { AnalyticsService } from './analytics.service';
 import { CampaignReportService } from './campaign-report.service';
 import { FunnelAnalyticsService } from './funnel-analytics.service';
 import { ApiKeyGuard } from '../common/guards/api-key.guard';
+import type { VisitAnalyticsFilters, VisitBreakdownDimension } from './visit-filters';
 
 @Controller('api/analytics')
 @UseGuards(ApiKeyGuard)
@@ -74,6 +75,41 @@ export class AnalyticsController {
     @Query('to') to?: string,
   ) {
     return this.analytics.getBreakdown(dimension || 'publisher', campaignId, from, to);
+  }
+
+  @Get('visits/summary')
+  visitSummary(@Query() query: Record<string, string | undefined>) {
+    return this.analytics.getVisitSummary(this.parseVisitFilters(query));
+  }
+
+  @Get('visits/breakdown')
+  visitBreakdown(
+    @Query('dimension') dimension: VisitBreakdownDimension,
+    @Query() query: Record<string, string | undefined>,
+  ) {
+    return this.analytics.getVisitBreakdown(
+      dimension || 'publisher',
+      this.parseVisitFilters(query),
+    );
+  }
+
+  private parseVisitFilters(query: Record<string, string | undefined>): VisitAnalyticsFilters {
+    const { isBot, isNewVisitor, ...rest } = query;
+    return {
+      campaignId: rest.campaignId,
+      from: rest.from,
+      to: rest.to,
+      publisher: rest.publisher,
+      platform: rest.platform,
+      country: rest.country,
+      device: rest.device,
+      adId: rest.adId,
+      siteId: rest.siteId,
+      contentName: rest.contentName,
+      isBot: isBot === 'true' ? true : isBot === 'false' ? false : undefined,
+      isNewVisitor:
+        isNewVisitor === 'true' ? true : isNewVisitor === 'false' ? false : undefined,
+    };
   }
 
   @Get('funnel')

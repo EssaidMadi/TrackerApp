@@ -312,6 +312,45 @@ export interface BreakdownRow {
   cr: string;
 }
 
+export interface VisitSummary {
+  visits: number;
+  uniqueVisits: number;
+  newVisitors: number;
+  returningVisitors: number;
+  botVisits: number;
+  humanVisits: number;
+  botPct: string;
+  humanPct: string;
+  conversions: number;
+  conversionRate: string;
+  revenue: number;
+}
+
+export type VisitBreakdownDimension =
+  | 'publisher'
+  | 'ad'
+  | 'site'
+  | 'content'
+  | 'platform'
+  | 'country'
+  | 'device'
+  | 'campaign';
+
+export interface VisitBreakdownRow {
+  key: string;
+  label: string;
+  visits: number;
+  uniqueVisitors: number;
+  botVisits: number;
+  humanVisits: number;
+  botPct: string;
+  newVisitors: number;
+  convertingVisits: number;
+  conversions: number;
+  cr: string;
+  revenue: number;
+}
+
 export interface FunnelStepMetrics {
   stepId: string;
   label: string;
@@ -441,6 +480,14 @@ export const trackerApi = {
   getBreakdown: (dimension: string, params?: Record<string, string>) => {
     const qs = new URLSearchParams({ dimension, ...params });
     return api<BreakdownRow[]>(`/api/analytics/breakdown?${qs}`);
+  },
+  getVisitSummary: (params?: Record<string, string>) => {
+    const qs = params ? `?${new URLSearchParams(params)}` : '';
+    return api<VisitSummary>(`/api/analytics/visits/summary${qs}`);
+  },
+  getVisitBreakdown: (dimension: VisitBreakdownDimension, params?: Record<string, string>) => {
+    const qs = new URLSearchParams({ dimension, ...params });
+    return api<VisitBreakdownRow[]>(`/api/analytics/visits/breakdown?${qs}`);
   },
   getLiveTraffic: (params?: Record<string, string>) => {
     const qs = params ? `?${new URLSearchParams(params)}` : '';

@@ -16,7 +16,12 @@ export class CampaignsClicksController {
     @Query('platform') platform?: string,
     @Query('device') device?: string,
     @Query('country') country?: string,
+    @Query('adId') adId?: string,
+    @Query('siteId') siteId?: string,
+    @Query('contentName') contentName?: string,
     @Query('isBot') isBot?: string,
+    @Query('isNewVisitor') isNewVisitor?: string,
+    @Query('converted') converted?: string,
     @Query('limit') limit?: string,
     @Query('offset') offset?: string,
   ) {
@@ -28,7 +33,14 @@ export class CampaignsClicksController {
       platform,
       device,
       country,
+      adId,
+      siteId,
+      contentName,
       isBot: isBot === 'true' ? true : isBot === 'false' ? false : undefined,
+      isNewVisitor:
+        isNewVisitor === 'true' ? true : isNewVisitor === 'false' ? false : undefined,
+      converted:
+        converted === 'true' ? true : converted === 'false' ? false : undefined,
       limit: limit ? parseInt(limit, 10) : undefined,
       offset: offset ? parseInt(offset, 10) : undefined,
     });
