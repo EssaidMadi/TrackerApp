@@ -38,6 +38,21 @@ export class PlatformSyncController {
     return this.sync.testConnection(id);
   }
 
+  @Get('connections/:id/mediago/accounts')
+  mediagoAccounts(@Param('id') id: string) {
+    return this.sync.getMediagoAccounts(id);
+  }
+
+  @Get('connections/:id/mediago/campaigns')
+  mediagoCampaigns(@Param('id') id: string) {
+    return this.sync.getMediagoCampaigns(id);
+  }
+
+  @Post('connections/:id/mediago/auto-map')
+  mediagoAutoMap(@Param('id') id: string) {
+    return this.sync.autoMapMediagoCampaigns(id);
+  }
+
   @Post('sync')
   syncAll() {
     return this.sync.syncAll();

@@ -1,51 +1,58 @@
 import { HttpService } from '@nestjs/axios';
 import { AdPlatform } from '@prisma/client';
-import { firstValueFrom } from 'rxjs';
+import { MediagoApiClient } from '../mediago/mediago-api.client';
+import { parseMediagoCredentials } from '../mediago/mediago-credentials';
 import type { PlatformSyncAdapter, SpendMetricRow } from '../interfaces/platform-sync.adapter';
 
 export class MediagoSyncAdapter implements PlatformSyncAdapter {
   platform = AdPlatform.mediago;
+  private readonly client: MediagoApiClient;
 
-  constructor(private readonly http: HttpService) {}
+  constructor(http: HttpService) {
+    this.client = new MediagoApiClient(http);
+  }
 
-  async testConnection(credentials: Record<string, unknown>, _accountId: string | null): Promise<boolean> {
-    return Boolean(credentials.apiKey || credentials.accountName);
+  getClient(): MediagoApiClient {
+    return this.client;
+  }
+
+  async testConnection(
+    credentials: Record<string, unknown>,
+    accountId: string | null,
+  ): Promise<boolean> {
+    try {
+      parseMediagoCredentials(credentials);
+      await this.client.authenticate(credentials);
+      const accounts = await this.client.listAccounts(credentials);
+      if (accountId) {
+        return accounts.some((a) => a.accountId === accountId);
+      }
+      return accounts.length > 0;
+    } catch {
+      return false;
+    }
   }
 
   async fetchMetrics(
     credentials: Record<string, unknown>,
-    _accountId: string | null,
+    accountId: string | null,
     from: Date,
     to: Date,
   ): Promise<SpendMetricRow[]> {
-    const apiKey = String(credentials.apiKey || '');
-    const baseUrl = String(credentials.reportingUrl || '');
-    if (!apiKey || !baseUrl) return [];
+    const daily = await this.client.fetchDailyCampaignMetrics(
+      credentials,
+      from,
+      to,
+      accountId,
+    );
 
-    try {
-      const { data } = await firstValueFrom(
-        this.http.get(baseUrl, {
-          params: {
-            api_key: apiKey,
-            from: from.toISOString().slice(0, 10),
-            to: to.toISOString().slice(0, 10),
-          },
-        }),
-      );
-      const rows: SpendMetricRow[] = [];
-      for (const item of data?.campaigns || data?.data || []) {
-        rows.push({
-          externalCampaignId: String(item.campaign_id || item.id || ''),
-          date: new Date(item.date || from),
-          impressions: Number(item.impressions || 0),
-          clicks: Number(item.clicks || 0),
-          spend: Number(item.spend || item.cost || 0),
-          currency: item.currency || 'EUR',
-        });
-      }
-      return rows;
-    } catch {
-      return [];
-    }
+    return daily.map((row) => ({
+      externalCampaignId: row.campaignId,
+      date: new Date(row.date + 'T12:00:00.000Z'),
+      impressions: row.impressions,
+      clicks: row.clicks,
+      spend: row.spend,
+      currency: 'USD',
+    }));
   }
 }

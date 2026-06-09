@@ -31,6 +31,12 @@ const PLATFORMS = [
   'native',
 ];
 
+const MEDIAGO_TIMEZONES = [
+  { value: 'utc0', label: 'UTC' },
+  { value: 'utc8', label: 'UTC+8' },
+  { value: 'est', label: 'US Eastern' },
+];
+
 export default function IntegrationsPage() {
   const [connections, setConnections] = useState<PlatformConnection[]>([]);
   const [mappings, setMappings] = useState<CampaignPlatformMapping[]>([]);
@@ -39,15 +45,31 @@ export default function IntegrationsPage() {
   const [syncing, setSyncing] = useState(false);
 
   const [connForm, setConnForm] = useState({
-    platform: 'facebook',
+    platform: 'mediago',
     label: '',
     accountId: '',
     credentialsJson: '{}',
   });
 
+  const [mediagoForm, setMediagoForm] = useState({
+    label: '',
+    apiTokenBase64: '',
+    apiTokenRaw: '',
+    accountId: '',
+    accountName: '',
+    timezone: 'utc0',
+  });
+
+  const [mediagoAccounts, setMediagoAccounts] = useState<
+    { accountId: string; accountName: string }[]
+  >([]);
+  const [mediagoCampaigns, setMediagoCampaigns] = useState<
+    { campaignId: string; campaignName: string }[]
+  >([]);
+
   const [mapForm, setMapForm] = useState({
     campaignId: '',
-    platform: 'facebook',
+    platform: 'mediago',
     externalCampaignId: '',
   });
 
@@ -81,25 +103,81 @@ export default function IntegrationsPage() {
 
   useEffect(() => {
     load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const addConnection = async () => {
     try {
-      let credentials = {};
-      try {
-        credentials = JSON.parse(connForm.credentialsJson);
-      } catch {
-        alert('Invalid credentials JSON');
-        return;
+      if (connForm.platform === 'mediago') {
+        if (!mediagoForm.label.trim()) {
+          alert('Label is required');
+          return;
+        }
+        if (!mediagoForm.apiTokenBase64.trim() && !mediagoForm.apiTokenRaw.trim()) {
+          alert('Paste your Mediago Base64 or raw API token');
+          return;
+        }
+        await trackerApi.createPlatformConnection({
+          platform: 'mediago',
+          label: mediagoForm.label.trim(),
+          accountId: mediagoForm.accountId || undefined,
+          credentials: {
+            ...(mediagoForm.apiTokenBase64.trim()
+              ? { apiTokenBase64: mediagoForm.apiTokenBase64.trim() }
+              : {}),
+            ...(mediagoForm.apiTokenRaw.trim()
+              ? { apiToken: mediagoForm.apiTokenRaw.trim() }
+              : {}),
+            ...(mediagoForm.accountName.trim()
+              ? { accountName: mediagoForm.accountName.trim() }
+              : {}),
+            timezone: mediagoForm.timezone,
+          },
+        });
+        setMediagoForm({
+          label: '',
+          apiTokenBase64: '',
+          apiTokenRaw: '',
+          accountId: '',
+          accountName: '',
+          timezone: 'utc0',
+        });
+      } else {
+        let credentials = {};
+        try {
+          credentials = JSON.parse(connForm.credentialsJson);
+        } catch {
+          alert('Invalid credentials JSON');
+          return;
+        }
+        await trackerApi.createPlatformConnection({
+          platform: connForm.platform,
+          label: connForm.label,
+          accountId: connForm.accountId || undefined,
+          credentials,
+        });
+        setConnForm({ platform: 'mediago', label: '', accountId: '', credentialsJson: '{}' });
       }
-      await trackerApi.createPlatformConnection({
-        platform: connForm.platform,
-        label: connForm.label,
-        accountId: connForm.accountId || undefined,
-        credentials,
-      });
-      setConnForm({ platform: 'facebook', label: '', accountId: '', credentialsJson: '{}' });
       load();
+    } catch (err) {
+      alert(String(err));
+    }
+  };
+
+  const testMediagoBeforeSave = async () => {
+    if (!mediagoForm.apiTokenBase64.trim() && !mediagoForm.apiTokenRaw.trim()) {
+      alert('Paste a token first');
+      return;
+    }
+    alert(
+      'Save the connection first, then click Test on the connection row to load Mediago accounts.',
+    );
+  };
+
+  const loadMediagoCampaigns = async (connectionId: string) => {
+    try {
+      const list = await trackerApi.getMediagoCampaigns(connectionId);
+      setMediagoCampaigns(list);
     } catch (err) {
       alert(String(err));
     }
@@ -152,6 +230,8 @@ export default function IntegrationsPage() {
     }
   };
 
+  const isMediago = connForm.platform === 'mediago';
+
   if (loading) return <Loading />;
 
   return (
@@ -182,64 +262,191 @@ export default function IntegrationsPage() {
               ))}
             </Select>
           </div>
-          <div>
-            <Label>Label</Label>
-            <Input
-              value={connForm.label}
-              onChange={(e) => setConnForm({ ...connForm, label: e.target.value })}
-              placeholder="Facebook main account"
-            />
-          </div>
+          {!isMediago && (
+            <div>
+              <Label>Label</Label>
+              <Input
+                value={connForm.label}
+                onChange={(e) => setConnForm({ ...connForm, label: e.target.value })}
+                placeholder="Facebook main account"
+              />
+            </div>
+          )}
         </div>
-        <div>
-          <Label>Account ID</Label>
-          <Input
-            value={connForm.accountId}
-            onChange={(e) => setConnForm({ ...connForm, accountId: e.target.value })}
-            placeholder="act_123456 / marketer ID"
-          />
-        </div>
-        <div>
-          <Label>Credentials (JSON)</Label>
-          <Textarea
-            rows={4}
-            className="font-mono text-xs"
-            value={connForm.credentialsJson}
-            onChange={(e) => setConnForm({ ...connForm, credentialsJson: e.target.value })}
-            placeholder='{"accessToken":"...","adAccountId":"act_..."}'
-          />
-        </div>
-        <Button onClick={addConnection}>Add connection</Button>
+
+        {isMediago ? (
+          <>
+            <p className="text-xs text-zinc-500">
+              Paste the token from Mediago dashboard. Use the <strong>Base64-encoded</strong> token
+              first; raw token is optional fallback.
+            </p>
+            <div>
+              <Label>Connection label</Label>
+              <Input
+                value={mediagoForm.label}
+                onChange={(e) => setMediagoForm({ ...mediagoForm, label: e.target.value })}
+                placeholder="Mediago main account"
+              />
+            </div>
+            <div>
+              <Label>Base64 API token (recommended)</Label>
+              <Input
+                type="password"
+                autoComplete="off"
+                value={mediagoForm.apiTokenBase64}
+                onChange={(e) =>
+                  setMediagoForm({ ...mediagoForm, apiTokenBase64: e.target.value })
+                }
+                placeholder="From Mediago: Copy Base64-Encoded Token"
+              />
+            </div>
+            <div>
+              <Label>Raw API token (optional)</Label>
+              <Input
+                type="password"
+                autoComplete="off"
+                value={mediagoForm.apiTokenRaw}
+                onChange={(e) => setMediagoForm({ ...mediagoForm, apiTokenRaw: e.target.value })}
+                placeholder="From Mediago: Copy Non-Base64 Token"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Mediago account ID (optional)</Label>
+                <Input
+                  value={mediagoForm.accountId}
+                  onChange={(e) => setMediagoForm({ ...mediagoForm, accountId: e.target.value })}
+                  placeholder="Filled after Test, or paste from Mediago"
+                />
+              </div>
+              <div>
+                <Label>Account name (for postbacks)</Label>
+                <Input
+                  value={mediagoForm.accountName}
+                  onChange={(e) =>
+                    setMediagoForm({ ...mediagoForm, accountName: e.target.value })
+                  }
+                  placeholder="accountname in S2S postback"
+                />
+              </div>
+            </div>
+            <div>
+              <Label>Report timezone</Label>
+              <Select
+                value={mediagoForm.timezone}
+                onChange={(e) => setMediagoForm({ ...mediagoForm, timezone: e.target.value })}
+              >
+                {MEDIAGO_TIMEZONES.map((tz) => (
+                  <option key={tz.value} value={tz.value}>
+                    {tz.label}
+                  </option>
+                ))}
+              </Select>
+            </div>
+            <div className="flex gap-2">
+              <Button onClick={addConnection}>Add Mediago connection</Button>
+              <Button type="button" variant="secondary" onClick={testMediagoBeforeSave}>
+                Token help
+              </Button>
+            </div>
+          </>
+        ) : (
+          <>
+            <div>
+              <Label>Account ID</Label>
+              <Input
+                value={connForm.accountId}
+                onChange={(e) => setConnForm({ ...connForm, accountId: e.target.value })}
+                placeholder="act_123456 / marketer ID"
+              />
+            </div>
+            <div>
+              <Label>Credentials (JSON)</Label>
+              <Textarea
+                rows={4}
+                className="font-mono text-xs"
+                value={connForm.credentialsJson}
+                onChange={(e) => setConnForm({ ...connForm, credentialsJson: e.target.value })}
+                placeholder='{"accessToken":"...","adAccountId":"act_..."}'
+              />
+            </div>
+            <Button onClick={addConnection}>Add connection</Button>
+          </>
+        )}
       </Card>
 
       <Card>
         <h2 className="font-semibold mb-3">Connections</h2>
         <ul className="space-y-2 text-sm">
           {connections.map((c) => (
-            <li key={c.id} className="flex items-center justify-between border-b border-zinc-100 py-2">
+            <li
+              key={c.id}
+              className="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-100 py-2"
+            >
               <span>
                 <strong>{c.label}</strong> ({c.platform}) — {c.status}
+                {c.accountId && (
+                  <span className="text-zinc-400 ml-2">account {c.accountId}</span>
+                )}
                 {c.lastSyncAt && (
                   <span className="text-zinc-400 ml-2">
                     last sync {new Date(c.lastSyncAt).toLocaleString()}
                   </span>
                 )}
+                {c.lastError && (
+                  <span className="text-red-500 ml-2 block text-xs">{c.lastError}</span>
+                )}
               </span>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 <Button
                   size="sm"
                   variant="secondary"
                   onClick={async () => {
                     const r = await trackerApi.testPlatformConnection(c.id);
-                    alert(r.ok ? 'OK' : 'Failed');
+                    if (r.accounts?.length) {
+                      setMediagoAccounts(r.accounts);
+                      alert(
+                        `${r.message || (r.ok ? 'OK' : 'Failed')}\n\n${r.accounts
+                          .map((a) => `${a.accountName} (${a.accountId})`)
+                          .join('\n')}`,
+                      );
+                    } else {
+                      alert(r.message || (r.ok ? 'OK' : 'Failed'));
+                    }
                   }}
                 >
                   Test
                 </Button>
+                {c.platform === 'mediago' && (
+                  <>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => loadMediagoCampaigns(c.id)}
+                    >
+                      Load campaigns
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={async () => {
+                        const r = await trackerApi.autoMapMediagoCampaigns(c.id);
+                        alert(`Auto-mapped ${r.mapped} of ${r.total} Mediago campaigns`);
+                        load();
+                      }}
+                    >
+                      Auto-map
+                    </Button>
+                  </>
+                )}
                 <Button
                   size="sm"
                   variant="secondary"
-                  onClick={() => trackerApi.syncPlatformConnection(c.id).then(load)}
+                  onClick={async () => {
+                    const n = await trackerApi.syncPlatformConnection(c.id);
+                    alert(`Synced ${n} spend rows`);
+                    load();
+                  }}
                 >
                   Sync
                 </Button>
@@ -252,10 +459,39 @@ export default function IntegrationsPage() {
         </ul>
       </Card>
 
+      {mediagoCampaigns.length > 0 && (
+        <Card className="space-y-3 max-w-3xl">
+          <h2 className="font-semibold">Mediago campaigns (from API)</h2>
+          <p className="text-xs text-zinc-500">
+            Click a row to fill the mapping form. Auto-map matches by campaign name / slug.
+          </p>
+          <ul className="text-xs font-mono max-h-48 overflow-y-auto space-y-1">
+            {mediagoCampaigns.map((mc) => (
+              <li key={mc.campaignId}>
+                <button
+                  type="button"
+                  className="text-left hover:text-indigo-600 w-full"
+                  onClick={() =>
+                    setMapForm({
+                      campaignId: mapForm.campaignId,
+                      platform: 'mediago',
+                      externalCampaignId: mc.campaignId,
+                    })
+                  }
+                >
+                  {mc.campaignId} — {mc.campaignName}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
+
       <Card className="space-y-4 max-w-2xl">
         <h2 className="font-semibold">Campaign ID mapping</h2>
         <p className="text-xs text-zinc-500">
-          Link tracker campaign to external ad platform campaign ID for spend sync.
+          Link tracker campaign to Mediago campaign ID for spend sync. Use Auto-map on a Mediago
+          connection to match existing tracker campaigns by name.
         </p>
         <div className="grid grid-cols-3 gap-3">
           <div>
@@ -290,6 +526,7 @@ export default function IntegrationsPage() {
             <Input
               value={mapForm.externalCampaignId}
               onChange={(e) => setMapForm({ ...mapForm, externalCampaignId: e.target.value })}
+              placeholder="Mediago campaign_id"
             />
           </div>
         </div>
@@ -302,6 +539,19 @@ export default function IntegrationsPage() {
           ))}
         </ul>
       </Card>
+
+      {mediagoAccounts.length > 0 && (
+        <Card className="max-w-2xl">
+          <h2 className="font-semibold mb-2">Mediago accounts on token</h2>
+          <ul className="text-sm space-y-1">
+            {mediagoAccounts.map((a) => (
+              <li key={a.accountId}>
+                {a.accountName} — <code>{a.accountId}</code>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
 
       <Card className="space-y-4 max-w-2xl">
         <h2 className="font-semibold">Manual spend entry</h2>
@@ -343,7 +593,7 @@ export default function IntegrationsPage() {
             />
           </div>
           <div>
-            <Label>Spend (EUR)</Label>
+            <Label>Spend (USD)</Label>
             <Input
               value={manualForm.spend}
               onChange={(e) => setManualForm({ ...manualForm, spend: e.target.value })}

@@ -507,7 +507,24 @@ export const trackerApi = {
   deletePlatformConnection: (id: string) =>
     api<{ deleted: boolean }>(`/api/integrations/connections/${id}`, { method: 'DELETE' }),
   testPlatformConnection: (id: string) =>
-    api<{ ok: boolean }>(`/api/integrations/connections/${id}/test`, { method: 'POST' }),
+    api<{
+      ok: boolean;
+      message?: string;
+      accounts?: { accountId: string; accountName: string }[];
+    }>(`/api/integrations/connections/${id}/test`, { method: 'POST' }),
+  getMediagoAccounts: (connectionId: string) =>
+    api<{ accountId: string; accountName: string }[]>(
+      `/api/integrations/connections/${connectionId}/mediago/accounts`,
+    ),
+  getMediagoCampaigns: (connectionId: string) =>
+    api<{ campaignId: string; campaignName: string; accountId?: string }[]>(
+      `/api/integrations/connections/${connectionId}/mediago/campaigns`,
+    ),
+  autoMapMediagoCampaigns: (connectionId: string) =>
+    api<{ mapped: number; total: number }>(
+      `/api/integrations/connections/${connectionId}/mediago/auto-map`,
+      { method: 'POST' },
+    ),
   syncAllPlatforms: () => api<{ synced: number }>('/api/integrations/sync', { method: 'POST' }),
   syncPlatformConnection: (id: string) =>
     api<number>(`/api/integrations/connections/${id}/sync`, { method: 'POST' }),

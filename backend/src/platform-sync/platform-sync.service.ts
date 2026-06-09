@@ -16,16 +16,19 @@ import {
   CreateCampaignMappingDto,
   ManualSpendDto,
 } from './dto/platform-sync.dto';
+import { sanitizeMediagoCredentialsForResponse } from './mediago/mediago-credentials';
 
 @Injectable()
 export class PlatformSyncService implements OnModuleInit {
   private readonly logger = new Logger(PlatformSyncService.name);
   private adapters = new Map<AdPlatform, PlatformSyncAdapter>();
+  private readonly mediagoAdapter: MediagoSyncAdapter;
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly http: HttpService,
   ) {
+    this.mediagoAdapter = new MediagoSyncAdapter(this.http);
     this.registerAdapters();
   }
 
@@ -40,7 +43,7 @@ export class PlatformSyncService implements OnModuleInit {
     const list: PlatformSyncAdapter[] = [
       new FacebookSyncAdapter(this.http),
       new GoogleSyncAdapter(),
-      new MediagoSyncAdapter(this.http),
+      this.mediagoAdapter,
       new OutbrainSyncAdapter(this.http),
       new TaboolaSyncAdapter(this.http),
       new MgidSyncAdapter(this.http),
@@ -52,8 +55,15 @@ export class PlatformSyncService implements OnModuleInit {
     for (const a of list) this.adapters.set(a.platform, a);
   }
 
-  listConnections() {
-    return this.prisma.platformConnection.findMany({ orderBy: { platform: 'asc' } });
+  async listConnections() {
+    const rows = await this.prisma.platformConnection.findMany({ orderBy: { platform: 'asc' } });
+    return rows.map((row) => ({
+      ...row,
+      credentials:
+        row.platform === AdPlatform.mediago
+          ? sanitizeMediagoCredentialsForResponse(row.credentials as Record<string, unknown>)
+          : row.credentials,
+    }));
   }
 
   createConnection(dto: CreatePlatformConnectionDto) {
@@ -90,13 +100,107 @@ export class PlatformSyncService implements OnModuleInit {
   async testConnection(id: string) {
     const conn = await this.prisma.platformConnection.findUnique({ where: { id } });
     if (!conn) throw new BadRequestException('Connection not found');
+
+    if (conn.platform === AdPlatform.mediago) {
+      try {
+        const accounts = await this.mediagoAdapter
+          .getClient()
+          .listAccounts(conn.credentials as Record<string, unknown>);
+        const ok = accounts.length > 0;
+        return {
+          ok,
+          accounts,
+          message: ok
+            ? `Connected — ${accounts.length} Mediago account(s) found`
+            : 'No Mediago accounts returned for this token',
+        };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        return { ok: false, accounts: [], message };
+      }
+    }
+
     const adapter = this.adapters.get(conn.platform);
-    if (!adapter) return { ok: false };
+    if (!adapter) return { ok: false, message: 'No adapter for platform' };
     const ok = await adapter.testConnection(
       conn.credentials as Record<string, unknown>,
       conn.accountId,
     );
-    return { ok };
+    return { ok, message: ok ? 'Connection OK' : 'Connection failed' };
+  }
+
+  async getMediagoAccounts(connectionId: string) {
+    const conn = await this.requireMediagoConnection(connectionId);
+    return this.mediagoAdapter.getClient().listAccounts(conn.credentials as Record<string, unknown>);
+  }
+
+  async getMediagoCampaigns(connectionId: string) {
+    const conn = await this.requireMediagoConnection(connectionId);
+    return this.mediagoAdapter
+      .getClient()
+      .listCampaigns(conn.credentials as Record<string, unknown>, conn.accountId);
+  }
+
+  async autoMapMediagoCampaigns(connectionId: string) {
+    const conn = await this.requireMediagoConnection(connectionId);
+    const external = await this.mediagoAdapter
+      .getClient()
+      .listCampaigns(conn.credentials as Record<string, unknown>, conn.accountId);
+    const trackerCampaigns = await this.prisma.campaign.findMany({
+      select: { id: true, name: true, slug: true, externalId: true },
+    });
+
+    let mapped = 0;
+    for (const ext of external) {
+      const existing = await this.prisma.campaignPlatformMapping.findFirst({
+        where: {
+          platform: AdPlatform.mediago,
+          externalCampaignId: ext.campaignId,
+        },
+      });
+      if (existing) continue;
+
+      const match = this.matchTrackerCampaign(trackerCampaigns, ext.campaignId, ext.campaignName);
+      if (!match) continue;
+
+      await this.createMapping({
+        campaignId: match.id,
+        platform: AdPlatform.mediago,
+        externalCampaignId: ext.campaignId,
+      });
+      mapped += 1;
+    }
+
+    return { mapped, total: external.length };
+  }
+
+  private requireMediagoConnection(connectionId: string) {
+    return this.prisma.platformConnection
+      .findUnique({ where: { id: connectionId } })
+      .then((conn) => {
+        if (!conn) throw new BadRequestException('Connection not found');
+        if (conn.platform !== AdPlatform.mediago) {
+          throw new BadRequestException('Not a Mediago connection');
+        }
+        return conn;
+      });
+  }
+
+  private matchTrackerCampaign(
+    campaigns: { id: string; name: string; slug: string; externalId: string | null }[],
+    externalId: string,
+    externalName: string,
+  ) {
+    const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '');
+    const extNorm = norm(externalName);
+
+    return (
+      campaigns.find((c) => c.externalId === externalId) ||
+      campaigns.find((c) => c.slug === externalId) ||
+      campaigns.find((c) => norm(c.name) === extNorm) ||
+      campaigns.find((c) => norm(c.slug) === extNorm) ||
+      campaigns.find((c) => extNorm.includes(norm(c.slug)) || norm(c.slug).includes(extNorm))
+    );
   }
 
   listMappings() {
@@ -216,6 +320,13 @@ export class PlatformSyncService implements OnModuleInit {
 
     const adapter = this.adapters.get(conn.platform);
     if (!adapter) return 0;
+
+    if (conn.platform === AdPlatform.mediago) {
+      const auto = await this.autoMapMediagoCampaigns(connectionId);
+      if (auto.mapped > 0) {
+        this.logger.log(`Mediago auto-mapped ${auto.mapped} campaign(s) for connection ${connectionId}`);
+      }
+    }
 
     const end = to || new Date();
     const start = from || new Date(end.getTime() - 7 * 24 * 60 * 60 * 1000);
