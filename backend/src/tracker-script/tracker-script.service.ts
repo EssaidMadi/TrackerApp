@@ -9,8 +9,16 @@ export class TrackerScriptService {
     const baseUrl = this.config.get<string>('TRACKER_BASE_URL') || 'http://localhost:3001';
 
     return `(function (w, d, g, k) {
-  var TK_BASE = "${baseUrl}";
+  var TK_BASE_FALLBACK = "${baseUrl}";
+  var TK_BASE = TK_BASE_FALLBACK;
   var secure = w.location.protocol === "https:" ? "secure; " : "";
+
+  function resolveTrackerBase(tag) {
+    try {
+      if (tag && tag.src) return new URL(tag.src, w.location.href).origin;
+    } catch (e) {}
+    return TK_BASE_FALLBACK;
+  }
 
   function getCid() {
     var m = d.cookie.match(/(^| )tk-cid=([^;]+)/);
@@ -146,13 +154,15 @@ export class TrackerScriptService {
   w.dtpCallback = w.tkCallback;
 
   (function init() {
+    var tag = currentScript();
+    TK_BASE = resolveTrackerBase(tag);
+
     var params = new URLSearchParams(w.location.search);
     var urlCid = params.get("tk-cid") || params.get("tk_cid");
     if (urlCid) {
       saveCid(urlCid);
     }
 
-    var tag = currentScript();
     var campaign = tag && tag.getAttribute("data-campaign");
     var mode = (tag && tag.getAttribute("data-mode")) || "direct";
 
