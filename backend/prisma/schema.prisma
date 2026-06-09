@@ -329,12 +329,13 @@ model PostbackLog {
 }
 
 model ConversionEventType {
-  id           String   @id @default(uuid())
-  slug         String   @unique
-  displayLabel String   @map("display_label")
-  sortOrder    Int      @default(0) @map("sort_order")
-  active       Boolean  @default(true)
-  isSystem     Boolean  @default(false) @map("is_system")
+  id                  String   @id @default(uuid())
+  slug                String   @unique
+  displayLabel        String   @map("display_label")
+  sortOrder           Int      @default(0) @map("sort_order")
+  active              Boolean  @default(true)
+  countsAsConversion  Boolean  @default(false) @map("counts_as_conversion")
+  isSystem            Boolean  @default(false) @map("is_system")
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 

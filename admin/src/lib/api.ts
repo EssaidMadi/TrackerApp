@@ -282,6 +282,7 @@ export interface ConversionEventType {
   displayLabel: string;
   sortOrder: number;
   active: boolean;
+  countsAsConversion: boolean;
   isSystem: boolean;
 }
 
@@ -476,7 +477,12 @@ export const trackerApi = {
     api<ConversionEventType[]>(
       `/api/conversion-event-types${includeInactive ? '?includeInactive=true' : ''}`,
     ),
-  createConversionEventType: (data: { slug?: string; displayLabel: string; sortOrder?: number }) =>
+  createConversionEventType: (data: {
+    slug?: string;
+    displayLabel: string;
+    sortOrder?: number;
+    countsAsConversion?: boolean;
+  }) =>
     api<ConversionEventType>('/api/conversion-event-types', {
       method: 'POST',
       body: JSON.stringify(data),

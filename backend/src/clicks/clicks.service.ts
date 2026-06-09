@@ -26,6 +26,7 @@ import { GeoIpService } from './geo-ip.service';
 import { IpEnrichmentService } from './ip-enrichment.service';
 import { isPrivateOrLoopback } from '../shared/tracking/ip-resolver';
 import { fingerprintVisitorId } from '../common/utils/visitor-id';
+import { ConversionEventTypesService } from '../conversion-event-types/conversion-event-types.service';
 
 @Injectable()
 export class ClicksService {
@@ -35,6 +36,7 @@ export class ClicksService {
     private readonly deviceParser: DeviceParserService,
     private readonly geoIp: GeoIpService,
     private readonly ipEnrichment: IpEnrichmentService,
+    private readonly eventTypes: ConversionEventTypesService,
   ) {}
 
   async registerDirectVisit(
@@ -325,15 +327,20 @@ export class ClicksService {
       this.prisma.click.count({ where }),
     ]);
 
+    const conversionSlugs = new Set(await this.eventTypes.getConversionCountSlugs());
+
     return {
       items: items.map((click) => {
         const mappings = click.campaign.trafficSourceProfile?.paramMappings
           ? (click.campaign.trafficSourceProfile.paramMappings as unknown as ParamMapping[])
           : DEFAULT_PARAM_MAPPINGS;
+        const counted = click.conversions.filter((c) =>
+          this.eventTypes.isConversionCounted(c.eventType, conversionSlugs),
+        );
         return {
           ...click,
-          converted: click.conversions.length > 0,
-          conversionStatus: click.conversions[0]?.status || null,
+          converted: counted.length > 0,
+          conversionStatus: counted[0]?.status || click.conversions[0]?.status || null,
           isLocalIp: isPrivateOrLoopback(click.ipAddress || undefined),
           reportFields: getReportFieldsFromClick(click, mappings),
         };

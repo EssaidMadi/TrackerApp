@@ -11,6 +11,7 @@ import { TrackerScriptService } from '../tracker-script/tracker-script.service';
 import { TrafficSourcesService } from '../traffic-sources/traffic-sources.service';
 import { buildClickUrlFromTemplate } from '../shared/tracking/param-mapping';
 import { getVisitStats } from '../analytics/visit-stats';
+import { ConversionEventTypesService } from '../conversion-event-types/conversion-event-types.service';
 import {
   CreateCampaignDto,
   UpdateCampaignDto,
@@ -24,6 +25,7 @@ export class CampaignsService {
     private readonly domainsService: DomainsService,
     private readonly trackerScript: TrackerScriptService,
     private readonly trafficSources: TrafficSourcesService,
+    private readonly eventTypes: ConversionEventTypesService,
   ) {}
 
   async create(dto: CreateCampaignDto) {
@@ -149,12 +151,13 @@ export class CampaignsService {
   }
 
   async getStats(campaignId: string) {
+    const convCountWhere = await this.eventTypes.applyConversionCountFilter({ campaignId });
     try {
       const [visitStats, conversions, sentConversions] = await Promise.all([
         getVisitStats(this.prisma, campaignId),
-        this.prisma.conversion.count({ where: { campaignId } }),
+        this.prisma.conversion.count({ where: convCountWhere }),
         this.prisma.conversion.count({
-          where: { campaignId, status: 'sent' },
+          where: { ...convCountWhere, status: 'sent' },
         }),
       ]);
 
@@ -173,9 +176,9 @@ export class CampaignsService {
     } catch {
       const [visits, conversions, sentConversions] = await Promise.all([
         this.prisma.click.count({ where: { campaignId } }),
-        this.prisma.conversion.count({ where: { campaignId } }),
+        this.prisma.conversion.count({ where: convCountWhere }),
         this.prisma.conversion.count({
-          where: { campaignId, status: 'sent' },
+          where: { ...convCountWhere, status: 'sent' },
         }),
       ]);
 

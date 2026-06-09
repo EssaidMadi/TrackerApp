@@ -127,6 +127,7 @@ export class CampaignReportService {
     for (const campaign of campaigns) {
       const clickWhere = this.clickWhere(campaign.id, from, to);
       const convWhere = this.convWhere(campaign.id, from, to);
+      const convCountWhere = await this.eventTypes.applyConversionCountFilter(convWhere);
       const spendWhere = this.spendWhere(campaign.id, from, to);
 
       const [
@@ -147,7 +148,7 @@ export class CampaignReportService {
           where: { ...clickWhere, visitorId: { not: null } },
         }),
         this.prisma.click.count({ where: { ...clickWhere, visitorId: null } }),
-        this.prisma.conversion.count({ where: convWhere }),
+        this.prisma.conversion.count({ where: convCountWhere }),
         this.prisma.conversion.count({ where: { ...convWhere, status: 'failed' } }),
         this.prisma.conversion.aggregate({
           where: convWhere,
@@ -254,6 +255,7 @@ export class CampaignReportService {
     campaignId?: string,
   ): Promise<TimeseriesPoint[]> {
     const { fromDate, toDate } = this.parseRange(from, to);
+    const conversionSlugs = new Set(await this.eventTypes.getConversionCountSlugs());
 
     const clicks = await this.prisma.click.findMany({
       where: {
@@ -267,8 +269,11 @@ export class CampaignReportService {
       where: {
         ...(campaignId ? { campaignId } : {}),
         createdAt: { gte: fromDate, lte: toDate },
+        ...(conversionSlugs.size > 0
+          ? { eventType: { in: [...conversionSlugs] } }
+          : { eventType: { in: ['__no_conversion_slugs__'] } }),
       },
-      select: { createdAt: true, revenue: true, cost: true },
+      select: { createdAt: true, revenue: true, cost: true, eventType: true },
     });
 
     const spendRows = await this.prisma.campaignSpendSnapshot.findMany({
@@ -334,11 +339,12 @@ export class CampaignReportService {
   async getGlobalRollup(from?: string, to?: string) {
     const clickWhere = this.clickWhere(undefined, from, to);
     const convWhere = this.convWhere(undefined, from, to);
+    const convCountWhere = await this.eventTypes.applyConversionCountFilter(convWhere);
     const spendWhere = this.spendWhere(undefined, from, to);
 
     const [visitStats, conversions, revenueAgg, spendAgg, convCostAgg] = await Promise.all([
       getVisitStats(this.prisma, undefined, from, to),
-      this.prisma.conversion.count({ where: convWhere }),
+      this.prisma.conversion.count({ where: convCountWhere }),
       this.prisma.conversion.aggregate({ where: convWhere, _sum: { revenue: true, cost: true } }),
       this.prisma.campaignSpendSnapshot.aggregate({
         where: spendWhere,

@@ -1,15 +1,25 @@
 import { Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { DEFAULT_CONVERSION_EVENT_TYPES } from './conversion-event-types.seed';
 import { CreateConversionEventTypeDto, UpdateConversionEventTypeDto } from './dto/conversion-event-type.dto';
 import { normalizeEventType } from '../common/utils/normalize-event-type';
 
+const NO_CONVERSION_SLUG = '__no_conversion_slugs__';
+
 @Injectable()
 export class ConversionEventTypesService implements OnModuleInit {
+  private conversionSlugCache: { slugs: string[]; at: number } | null = null;
+  private readonly cacheTtlMs = 60_000;
+
   constructor(private readonly prisma: PrismaService) {}
 
   async onModuleInit() {
     await this.seedDefaults();
+  }
+
+  private invalidateCache() {
+    this.conversionSlugCache = null;
   }
 
   async seedDefaults() {
@@ -17,9 +27,14 @@ export class ConversionEventTypesService implements OnModuleInit {
       await this.prisma.conversionEventType.upsert({
         where: { slug: row.slug },
         create: { ...row, isSystem: true },
-        update: { displayLabel: row.displayLabel, sortOrder: row.sortOrder },
+        update: {
+          displayLabel: row.displayLabel,
+          sortOrder: row.sortOrder,
+          countsAsConversion: row.countsAsConversion,
+        },
       });
     }
+    this.invalidateCache();
   }
 
   findAll(includeInactive = false) {
@@ -35,32 +50,70 @@ export class ConversionEventTypesService implements OnModuleInit {
     return row;
   }
 
+  /** Slugs that increment the global Conversions / CV / eCPC metrics. */
+  async getConversionCountSlugs(): Promise<string[]> {
+    if (
+      this.conversionSlugCache &&
+      Date.now() - this.conversionSlugCache.at < this.cacheTtlMs
+    ) {
+      return this.conversionSlugCache.slugs;
+    }
+    const rows = await this.prisma.conversionEventType.findMany({
+      where: { countsAsConversion: true, active: true },
+      select: { slug: true },
+    });
+    const slugs = rows.map((r) => r.slug);
+    this.conversionSlugCache = { slugs, at: Date.now() };
+    return slugs;
+  }
+
+  async applyConversionCountFilter(
+    where: Prisma.ConversionWhereInput = {},
+  ): Promise<Prisma.ConversionWhereInput> {
+    const slugs = await this.getConversionCountSlugs();
+    return {
+      ...where,
+      eventType: slugs.length > 0 ? { in: slugs } : { in: [NO_CONVERSION_SLUG] },
+    };
+  }
+
+  isConversionCounted(eventType: string, slugs: Set<string>): boolean {
+    return slugs.has(normalizeEventType(eventType));
+  }
+
   create(dto: CreateConversionEventTypeDto) {
     const slug = normalizeEventType(dto.slug || dto.displayLabel);
+    this.invalidateCache();
     return this.prisma.conversionEventType.create({
       data: {
         slug,
         displayLabel: dto.displayLabel,
         sortOrder: dto.sortOrder ?? 500,
         active: dto.active ?? true,
+        countsAsConversion: dto.countsAsConversion ?? false,
       },
     });
   }
 
   async update(id: string, dto: UpdateConversionEventTypeDto) {
     await this.findOne(id);
+    this.invalidateCache();
     return this.prisma.conversionEventType.update({
       where: { id },
       data: {
         ...(dto.displayLabel !== undefined ? { displayLabel: dto.displayLabel } : {}),
         ...(dto.sortOrder !== undefined ? { sortOrder: dto.sortOrder } : {}),
         ...(dto.active !== undefined ? { active: dto.active } : {}),
+        ...(dto.countsAsConversion !== undefined
+          ? { countsAsConversion: dto.countsAsConversion }
+          : {}),
       },
     });
   }
 
   async remove(id: string) {
     const row = await this.findOne(id);
+    this.invalidateCache();
     if (row.isSystem) {
       return this.prisma.conversionEventType.update({
         where: { id },

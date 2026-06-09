@@ -9,10 +9,12 @@ export default function ConversionEventsPage() {
   const [loading, setLoading] = useState(true);
   const [label, setLabel] = useState('');
   const [slug, setSlug] = useState('');
+  const [countsAsConversion, setCountsAsConversion] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editLabel, setEditLabel] = useState('');
   const [editSortOrder, setEditSortOrder] = useState('0');
   const [editActive, setEditActive] = useState(true);
+  const [editCountsAsConversion, setEditCountsAsConversion] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const load = () => {
@@ -32,9 +34,14 @@ export default function ConversionEventsPage() {
     if (!label) return;
     setSaving(true);
     try {
-      await trackerApi.createConversionEventType({ displayLabel: label, slug: slug || undefined });
+      await trackerApi.createConversionEventType({
+        displayLabel: label,
+        slug: slug || undefined,
+        countsAsConversion,
+      });
       setLabel('');
       setSlug('');
+      setCountsAsConversion(false);
       load();
     } finally {
       setSaving(false);
@@ -46,6 +53,7 @@ export default function ConversionEventsPage() {
     setEditLabel(e.displayLabel);
     setEditSortOrder(String(e.sortOrder));
     setEditActive(e.active);
+    setEditCountsAsConversion(e.countsAsConversion);
   };
 
   const cancelEdit = () => {
@@ -60,6 +68,7 @@ export default function ConversionEventsPage() {
         displayLabel: editLabel.trim(),
         sortOrder: parseInt(editSortOrder, 10) || 0,
         active: editActive,
+        countsAsConversion: editCountsAsConversion,
       });
       setEditingId(null);
       load();
@@ -88,7 +97,7 @@ export default function ConversionEventsPage() {
     <div>
       <PageHeader
         title="Conversion event types"
-        description="Configure revenue column labels for the Overview report. Edit labels, order, or deactivate types you no longer need."
+        description="Configure event types for Overview columns and conversion metrics. Only types marked “Counts as conversion” increment Conversions, CV%, and eCPC."
       />
 
       <Card className="mb-6 max-w-xl space-y-3">
@@ -106,6 +115,14 @@ export default function ConversionEventsPage() {
             className="font-mono"
           />
         </div>
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={countsAsConversion}
+            onChange={(ev) => setCountsAsConversion(ev.target.checked)}
+          />
+          Counts as conversion (Overview Conversions / CV% / eCPC)
+        </label>
         <Button onClick={add} disabled={saving || !label}>
           Add
         </Button>
@@ -119,6 +136,7 @@ export default function ConversionEventsPage() {
               <th className="py-2 pr-4">Slug</th>
               <th className="py-2 pr-4">Order</th>
               <th className="py-2 pr-4">Active</th>
+              <th className="py-2 pr-4">Counts as conv.</th>
               <th className="py-2">Actions</th>
             </tr>
           </thead>
@@ -153,6 +171,16 @@ export default function ConversionEventsPage() {
                         Active
                       </label>
                     </td>
+                    <td className="py-2 pr-4">
+                      <label className="flex items-center gap-2 text-xs">
+                        <input
+                          type="checkbox"
+                          checked={editCountsAsConversion}
+                          onChange={(ev) => setEditCountsAsConversion(ev.target.checked)}
+                        />
+                        Yes
+                      </label>
+                    </td>
                     <td className="py-2">
                       <div className="flex gap-2">
                         <Button size="sm" onClick={() => saveEdit(e.id)} disabled={saving}>
@@ -175,6 +203,7 @@ export default function ConversionEventsPage() {
                     <td className="py-2 pr-4 font-mono text-xs">{e.slug}</td>
                     <td className="py-2 pr-4">{e.sortOrder}</td>
                     <td className="py-2 pr-4">{e.active ? 'Yes' : 'No'}</td>
+                    <td className="py-2 pr-4">{e.countsAsConversion ? 'Yes' : 'No'}</td>
                     <td className="py-2">
                       <div className="flex gap-2">
                         <Button size="sm" variant="secondary" onClick={() => startEdit(e)}>

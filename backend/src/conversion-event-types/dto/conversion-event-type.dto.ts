@@ -15,6 +15,10 @@ export class CreateConversionEventTypeDto {
   @IsOptional()
   @IsBoolean()
   active?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  countsAsConversion?: boolean;
 }
 
 export class UpdateConversionEventTypeDto {
@@ -29,4 +33,8 @@ export class UpdateConversionEventTypeDto {
   @IsOptional()
   @IsBoolean()
   active?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  countsAsConversion?: boolean;
 }

@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { ConversionEventTypesService } from '../conversion-event-types/conversion-event-types.service';
 import { getVisitStats } from './visit-stats';
 
 type BreakdownDimension =
@@ -12,7 +13,10 @@ type BreakdownDimension =
 
 @Injectable()
 export class AnalyticsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly eventTypes: ConversionEventTypesService,
+  ) {}
 
   async getOverview(campaignId?: string, from?: string, to?: string) {
     const clickWhere = this.dateFilter(campaignId, from, to);
@@ -27,11 +31,12 @@ export class AnalyticsService {
           }
         : {}),
     };
+    const convCountWhere = await this.eventTypes.applyConversionCountFilter(convWhere);
 
     const [visitStats, conversions, sentConversions] = await Promise.all([
       getVisitStats(this.prisma, campaignId, from, to),
-      this.prisma.conversion.count({ where: convWhere }),
-      this.prisma.conversion.count({ where: { ...convWhere, status: 'sent' } }),
+      this.prisma.conversion.count({ where: convCountWhere }),
+      this.prisma.conversion.count({ where: { ...convCountWhere, status: 'sent' } }),
     ]);
 
     const { visits, uniqueVisits, newVisitors, returningVisitors } = visitStats;
@@ -65,6 +70,7 @@ export class AnalyticsService {
 
     const field = fieldMap[dimension] || 'publisherName';
     const where = this.dateFilter(campaignId, from, to);
+    const conversionSlugs = await this.eventTypes.getConversionCountSlugs();
 
     const clicks = await this.prisma.click.findMany({ where });
 
@@ -85,6 +91,9 @@ export class AnalyticsService {
           where: {
             clickId: { in: stats.clickIds },
             status: 'sent',
+            ...(conversionSlugs.length > 0
+              ? { eventType: { in: conversionSlugs } }
+              : { eventType: { in: ['__no_conversion_slugs__'] } }),
           },
         });
 
@@ -118,17 +127,11 @@ export class AnalyticsService {
   }
 
   private getDimensionValue(
-    click: {
-      publisherName: string | null;
-      platform: string | null;
-      device: string | null;
-      os: string | null;
-      countryCode: string | null;
-      browser: string | null;
-    },
+    click: Record<string, unknown>,
     field: BreakdownDimension,
   ): string | null {
-    return click[field];
+    const v = click[field];
+    return typeof v === 'string' ? v : null;
   }
 
   private dateFilter(campaignId?: string, from?: string, to?: string) {
