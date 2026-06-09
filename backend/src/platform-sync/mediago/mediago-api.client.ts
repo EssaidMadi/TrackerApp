@@ -42,6 +42,33 @@ function formatDate(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
 
+export function extractMediagoRecordBatch(data: unknown): Record<string, unknown>[] {
+  if (!data) return [];
+  if (Array.isArray(data)) return data as Record<string, unknown>[];
+  if (typeof data === 'object') {
+    const obj = data as Record<string, unknown>;
+    for (const key of ['results', 'data', 'list', 'campaigns', 'items', 'records']) {
+      const val = obj[key];
+      if (Array.isArray(val)) return val as Record<string, unknown>[];
+    }
+  }
+  return [];
+}
+
+export function parseMediagoCampaignItem(item: Record<string, unknown>): MediagoCampaign | null {
+  const campaignId = String(item.campaign_id || item.campaignId || item.id || '').trim();
+  const campaignName = String(
+    item.campaign_name || item.campaignName || item.name || '',
+  ).trim();
+  if (!campaignId) return null;
+  const itemAccountId = String(item.account_id || item.accountId || '').trim();
+  return {
+    campaignId,
+    campaignName,
+    accountId: itemAccountId || undefined,
+  };
+}
+
 export class MediagoApiClient {
   private readonly logger = new Logger(MediagoApiClient.name);
 
@@ -100,51 +127,89 @@ export class MediagoApiClient {
     accountId?: string | null,
   ): Promise<MediagoCampaign[]> {
     const token = await this.authenticate(credentials);
-    const results: MediagoCampaign[] = [];
-    let page = 1;
-    const pageSize = 100;
+    const byId = new Map<string, MediagoCampaign>();
 
-    for (;;) {
+    const addBatch = (batch: Record<string, unknown>[]) => {
+      for (const item of batch) {
+        const parsed = parseMediagoCampaignItem(item);
+        if (!parsed) continue;
+        if (accountId && parsed.accountId && parsed.accountId !== accountId) continue;
+        byId.set(parsed.campaignId, parsed);
+      }
+    };
+
+    // page_type=0 returns full array at once (documented response shape)
+    try {
       const { data } = await firstValueFrom(
-        this.http.get<{
-          results?: unknown[];
-          data?: unknown[];
-          total?: number;
-        }>(`${BASE_URL}/manage/v1/campaign`, {
-          headers: { Authorization: `Bearer ${token}` },
-          params: {
-            page_type: '1',
-            page_size: pageSize,
-            current_page: page,
-            auth_level: 'r',
+        this.http.get<unknown>(`${BASE_URL}/manage/v1/campaign`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/x-www-form-urlencoded;charset=utf-8',
           },
+          params: { page_type: '0', auth_level: 'r' },
         }),
       );
-
-      const batch = (data?.results || data?.data || (Array.isArray(data) ? data : [])) as Record<
-        string,
-        unknown
-      >[];
-
-      for (const item of batch) {
-        const campaignId = String(item.campaign_id || item.id || '');
-        const campaignName = String(item.campaign_name || item.name || '');
-        const itemAccountId = String(item.account_id || '');
-        if (!campaignId) continue;
-        if (accountId && itemAccountId && itemAccountId !== accountId) continue;
-        results.push({
-          campaignId,
-          campaignName,
-          accountId: itemAccountId || undefined,
-        });
-      }
-
-      if (batch.length < pageSize) break;
-      page += 1;
-      if (page > 50) break;
+      addBatch(extractMediagoRecordBatch(data));
+    } catch (err) {
+      this.logger.warn(`Mediago campaign list (page_type=0) failed: ${String(err)}`);
     }
 
-    return results;
+    // Paginated fallback
+    if (byId.size === 0) {
+      let page = 1;
+      const pageSize = 100;
+      for (;;) {
+        const { data } = await firstValueFrom(
+          this.http.get<unknown>(`${BASE_URL}/manage/v1/campaign`, {
+            headers: {
+              Authorization: `Bearer ${token}`,
+              'Content-Type': 'application/x-www-form-urlencoded;charset=utf-8',
+            },
+            params: {
+              page_type: '1',
+              page_size: pageSize,
+              current_page: page,
+              auth_level: 'r',
+            },
+          }),
+        );
+        const batch = extractMediagoRecordBatch(data);
+        addBatch(batch);
+        if (batch.length < pageSize) break;
+        page += 1;
+        if (page > 50) break;
+      }
+    }
+
+    // Report API fallback — campaigns with recent spend (manage list can be empty)
+    if (byId.size === 0) {
+      const fromReport = await this.listCampaignsFromReport(credentials, 30);
+      for (const c of fromReport) byId.set(c.campaignId, c);
+    }
+
+    return [...byId.values()];
+  }
+
+  /** Discover campaigns from daily report (only campaigns with spend in range). */
+  async listCampaignsFromReport(
+    credentials: Record<string, unknown>,
+    daysBack = 30,
+  ): Promise<MediagoCampaign[]> {
+    const to = new Date();
+    const from = new Date(to.getTime() - daysBack * 24 * 60 * 60 * 1000);
+    const rows = await this.fetchDailyCampaignMetrics(credentials, from, to, null, {
+      skipAccountFilter: true,
+    });
+    const byId = new Map<string, MediagoCampaign>();
+    for (const row of rows) {
+      if (!byId.has(row.campaignId)) {
+        byId.set(row.campaignId, {
+          campaignId: row.campaignId,
+          campaignName: row.campaignName,
+        });
+      }
+    }
+    return [...byId.values()];
   }
 
   async fetchDailyCampaignMetrics(
@@ -152,6 +217,7 @@ export class MediagoApiClient {
     from: Date,
     to: Date,
     accountId?: string | null,
+    options?: { skipAccountFilter?: boolean },
   ): Promise<MediagoDailyRow[]> {
     const creds = parseMediagoCredentials(credentials);
     const token = await this.authenticate(credentials);
@@ -204,11 +270,16 @@ export class MediagoApiClient {
       }
     }
 
-    if (accountId) {
+    if (accountId && !options?.skipAccountFilter) {
       const allowed = new Set(
         (await this.listCampaigns(credentials, accountId)).map((c) => c.campaignId),
       );
-      return rows.filter((r) => allowed.has(r.campaignId));
+      if (allowed.size > 0) {
+        return rows.filter((r) => allowed.has(r.campaignId));
+      }
+      this.logger.warn(
+        `Mediago accountId=${accountId} set but manage campaign list empty — using all report rows`,
+      );
     }
 
     return rows;

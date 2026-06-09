@@ -431,7 +431,15 @@ export default function IntegrationsPage() {
                       variant="secondary"
                       onClick={async () => {
                         const r = await trackerApi.autoMapMediagoCampaigns(c.id);
-                        alert(`Auto-mapped ${r.mapped} of ${r.total} Mediago campaigns`);
+                        if (r.total === 0) {
+                          alert(
+                            'Mediago returned 0 campaigns. Try Sync (uses spend report) or map manually — e.g. nexoquote → 5208604.',
+                          );
+                        } else {
+                          alert(
+                            `Found ${r.total} Mediago campaign(s).\nNew mappings: ${r.mapped}\nAlready mapped: ${r.alreadyMapped ?? 0}\nNo name match: ${r.unmatched ?? 0}`,
+                          );
+                        }
                         load();
                       }}
                     >

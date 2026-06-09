@@ -521,7 +521,7 @@ export const trackerApi = {
       `/api/integrations/connections/${connectionId}/mediago/campaigns`,
     ),
   autoMapMediagoCampaigns: (connectionId: string) =>
-    api<{ mapped: number; total: number }>(
+    api<{ mapped: number; total: number; alreadyMapped?: number; unmatched?: number }>(
       `/api/integrations/connections/${connectionId}/mediago/auto-map`,
       { method: 'POST' },
     ),

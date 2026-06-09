@@ -151,6 +151,8 @@ export class PlatformSyncService implements OnModuleInit {
     });
 
     let mapped = 0;
+    let alreadyMapped = 0;
+    let unmatched = 0;
     for (const ext of external) {
       const existing = await this.prisma.campaignPlatformMapping.findFirst({
         where: {
@@ -158,10 +160,16 @@ export class PlatformSyncService implements OnModuleInit {
           externalCampaignId: ext.campaignId,
         },
       });
-      if (existing) continue;
+      if (existing) {
+        alreadyMapped += 1;
+        continue;
+      }
 
       const match = this.matchTrackerCampaign(trackerCampaigns, ext.campaignId, ext.campaignName);
-      if (!match) continue;
+      if (!match) {
+        unmatched += 1;
+        continue;
+      }
 
       await this.createMapping({
         campaignId: match.id,
@@ -171,7 +179,7 @@ export class PlatformSyncService implements OnModuleInit {
       mapped += 1;
     }
 
-    return { mapped, total: external.length };
+    return { mapped, total: external.length, alreadyMapped, unmatched };
   }
 
   private requireMediagoConnection(connectionId: string) {
@@ -194,12 +202,18 @@ export class PlatformSyncService implements OnModuleInit {
     const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '');
     const extNorm = norm(externalName);
 
+    const extLower = externalName.toLowerCase();
     return (
       campaigns.find((c) => c.externalId === externalId) ||
       campaigns.find((c) => c.slug === externalId) ||
       campaigns.find((c) => norm(c.name) === extNorm) ||
       campaigns.find((c) => norm(c.slug) === extNorm) ||
-      campaigns.find((c) => extNorm.includes(norm(c.slug)) || norm(c.slug).includes(extNorm))
+      campaigns.find((c) => extNorm.includes(norm(c.slug)) || norm(c.slug).includes(extNorm)) ||
+      campaigns.find(
+        (c) =>
+          c.slug.length >= 3 &&
+          (extLower.includes(c.slug.toLowerCase()) || extNorm.includes(norm(c.slug))),
+      )
     );
   }
 
