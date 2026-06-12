@@ -7,6 +7,7 @@ import { ConversionsService } from '../conversions/conversions.service';
 import { buildVisitorContextFromRequest } from '../clicks/visitor-context.util';
 import { buildVisitorCookie } from '../common/utils/visitor-id';
 import { isMediagoTrafficSource } from '../shared/tracking/mediago-conversion-types';
+import { shouldSendAutoViewContent } from '../shared/tracking/auto-view-content';
 
 @Controller('t')
 export class TrackerScriptController {
@@ -48,7 +49,9 @@ export class TrackerScriptController {
       isMediagoTrafficSource(result.utmSource) ||
       result.trafficSource === 'mediago' ||
       isMediagoTrafficSource(query.utm_source);
-    if (mediago) {
+    const sendViewContent =
+      !dto.noViewContent && shouldSendAutoViewContent(result.campaignSlug);
+    if (mediago && sendViewContent) {
       setImmediate(() => {
         this.conversions
           .create({

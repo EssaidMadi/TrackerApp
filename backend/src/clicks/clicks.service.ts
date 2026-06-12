@@ -52,6 +52,7 @@ export class ClicksService {
     return {
       clickId,
       campaignId: campaign.id,
+      campaignSlug: campaign.slug,
       trackingMode: campaign.trackingMode,
       trafficSource: campaign.trafficSource,
       visitorId,
@@ -91,6 +92,7 @@ export class ClicksService {
       clickId,
       utmSource,
       trafficSource: campaign.trafficSource,
+      campaignSlug: campaign.slug,
     };
   }
 

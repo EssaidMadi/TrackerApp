@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsObject } from 'class-validator';
+import { IsString, IsOptional, IsObject, IsBoolean } from 'class-validator';
 
 export class DirectVisitDto {
   @IsString()
@@ -11,4 +11,9 @@ export class DirectVisitDto {
   @IsOptional()
   @IsString()
   visitorId?: string;
+
+  /** LP script data-no-viewcontent — skip Mediago viewcontent (optimize for click_button). */
+  @IsOptional()
+  @IsBoolean()
+  noViewContent?: boolean;
 }

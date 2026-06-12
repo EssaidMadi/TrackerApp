@@ -5,6 +5,7 @@ import { ClicksService } from './clicks.service';
 import { ConversionsService } from '../conversions/conversions.service';
 import { buildVisitorCookie } from '../common/utils/visitor-id';
 import { isMediagoTrafficSource } from '../shared/tracking/mediago-conversion-types';
+import { shouldSendAutoViewContent } from '../shared/tracking/auto-view-content';
 
 const RESERVED = new Set(['api', 't', 'conversions', 'postback', 'click', 'health', 'favicon.ico']);
 
@@ -28,7 +29,7 @@ export class VoluumRedirectController {
     }
 
     const visitor = buildVisitorContextFromRequest(req, query);
-    const { destination, visitorId, clickId, utmSource, trafficSource } =
+    const { destination, visitorId, clickId, utmSource, trafficSource, campaignSlug } =
       await this.clicksService.handleClick(identifier, query, visitor);
 
     const mediago =
@@ -41,7 +42,7 @@ export class VoluumRedirectController {
             ? query.utm_source[0]
             : undefined,
       );
-    if (mediago && clickId) {
+    if (mediago && clickId && shouldSendAutoViewContent(campaignSlug)) {
       setImmediate(() => {
         this.conversions
           .create({

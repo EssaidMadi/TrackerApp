@@ -63,15 +63,27 @@ export class TrackerScriptService {
     return scripts[scripts.length - 1];
   }
 
-  function registerDirectVisit(campaignId) {
+  function isNoViewContent(tag) {
+    if (!tag) return false;
+    var v = tag.getAttribute("data-no-viewcontent");
+    return v === "" || v === "true" || v === "1";
+  }
+
+  function registerDirectVisit(campaignId, tag) {
     if (!campaignId || getCid()) return;
     var params = urlParams();
     var vid = getVid();
+    var noViewContent = isNoViewContent(tag);
     fetch(TK_BASE + "/t/visit", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       credentials: "include",
-      body: JSON.stringify({ campaign: campaignId, params: params, visitorId: vid || undefined }),
+      body: JSON.stringify({
+        campaign: campaignId,
+        params: params,
+        visitorId: vid || undefined,
+        noViewContent: noViewContent || undefined,
+      }),
       keepalive: true,
     })
       .then(function (r) { return r.json(); })
@@ -79,7 +91,7 @@ export class TrackerScriptService {
         if (data && data.visitorId) saveVid(data.visitorId);
         if (data && data.clickId) {
           saveCid(data.clickId);
-          maybeAutoViewContent();
+          if (!noViewContent) maybeAutoViewContent(tag);
         }
       })
       .catch(function () {});
@@ -113,7 +125,8 @@ export class TrackerScriptService {
     }).catch(function () {});
   }
 
-  function maybeAutoViewContent() {
+  function maybeAutoViewContent(tag) {
+    if (isNoViewContent(tag)) return;
     var cid = getCid();
     if (!cid) return;
     var params = urlParams();
@@ -167,9 +180,9 @@ export class TrackerScriptService {
     var mode = (tag && tag.getAttribute("data-mode")) || "direct";
 
     if (mode === "direct" && campaign && !getCid()) {
-      registerDirectVisit(campaign);
+      registerDirectVisit(campaign, tag);
     } else if (getCid()) {
-      maybeAutoViewContent();
+      maybeAutoViewContent(tag);
     }
   })();
 })(window, document, localStorage, encodeURIComponent);`;
