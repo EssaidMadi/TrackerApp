@@ -9,6 +9,7 @@ const links = [
   { href: '/funnel', label: 'LP Funnel', icon: 'M4 20V4M4 20h16M8 16l3-4 3 2 4-6' },
   { href: '/', label: 'Campaigns', icon: 'M3 7h18M3 12h18M3 17h18' },
   { href: '/domains', label: 'Domains', icon: 'M12 3l8 4v10l-8 4-8-4V7l8-4z' },
+  { href: '/landers', label: 'Landers', icon: 'M4 4h16v16H4z M8 8h8v8H8z' },
   { href: '/traffic-sources', label: 'Traffic Sources', icon: 'M4 6h16M4 12h16M4 18h10' },
   { href: '/integrations', label: 'Integrations', icon: 'M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83' },
   { href: '/conversion-events', label: 'Event types', icon: 'M4 7h16M4 12h10M4 17h6' },

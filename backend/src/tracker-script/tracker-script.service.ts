@@ -192,9 +192,14 @@ export class TrackerScriptService {
     campaignRef: string,
     mode: 'redirect' | 'direct',
     trackerBase?: string,
+    options?: { noViewContent?: boolean },
   ): string {
     const baseUrl =
       trackerBase || this.config.get<string>('TRACKER_BASE_URL') || 'http://localhost:3001';
-    return `<script src="${baseUrl}/t/tracker.js" data-campaign="${campaignRef}" data-mode="${mode}"></script>`;
+    let tag = `<script src="${baseUrl}/t/tracker.js" data-campaign="${campaignRef}" data-mode="${mode}"`;
+    if (options?.noViewContent) {
+      tag += ' data-no-viewcontent="true"';
+    }
+    return `${tag}></script>`;
   }
 }

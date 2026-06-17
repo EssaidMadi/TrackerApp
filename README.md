@@ -40,6 +40,19 @@ npm run dev
 | `GET /api/analytics/live` | Live incoming traffic feed |
 | `GET /api/analytics/breakdown` | CR breakdown by publisher/device/OS/country |
 | `GET /api/campaigns` | Campaign CRUD (admin) |
+| `GET /api/landers` | Lander CRUD + upload/deploy bundle (admin) |
+
+## Landers (upload + deploy)
+
+1. Open **Admin → Landers → New lander**
+2. Pick a campaign — slug, root domain, and public URL are suggested from verified tracker domains
+3. Upload a zip or HTML/CSS/JS files — tracker script is auto-injected into `index.html`
+4. **Download deploy bundle** — contains processed files + `deploy.sh`
+5. On your server: unzip and run `bash deploy.sh` (edit `REMOTE` / `REMOTE_PATH` if needed)
+
+Campaign `destinationUrl`, `landerId`, and `landerName` are updated automatically when you save.
+
+Set `LANDERS_STORAGE_ROOT` in backend `.env` (default: `./storage/landers`).
 
 ## Click URL examples
 

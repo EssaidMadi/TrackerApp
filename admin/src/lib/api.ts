@@ -391,6 +391,62 @@ export interface FunnelPostbackRow {
   revenue: number;
 }
 
+export interface Lander {
+  id: string;
+  name: string;
+  slug: string;
+  campaignId: string;
+  rootDomain?: string | null;
+  publicUrl: string;
+  storagePath: string;
+  entryFile: string;
+  injectTracker: boolean;
+  trackerAttrs?: { noViewContent?: boolean } | null;
+  status: 'draft' | 'ready';
+  fileCount: number;
+  processedCount: number;
+  hasFiles: boolean;
+  deployCommand: string;
+  createdAt: string;
+  updatedAt: string;
+  campaign: {
+    id: string;
+    name: string;
+    slug: string;
+    externalId?: string | null;
+    trackingMode: string;
+    destinationUrl: string;
+    domain?: { hostname: string; rootDomain: string; status: string } | null;
+  };
+}
+
+export interface LanderSuggestion {
+  slug: string;
+  rootDomain: string;
+  publicUrl: string;
+  trackerSnippet: string;
+  verifiedDomains: { id: string; label: string; rootDomain: string; hostname: string }[];
+}
+
+async function adminRaw(path: string, options: RequestInit = {}) {
+  const proxyPath = path.startsWith('/api/') ? path.slice(5) : path.replace(/^\//, '');
+  const res = await fetch(`/api/admin/${proxyPath}`, options);
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text || `API error ${res.status}`);
+  }
+  return res;
+}
+
+function downloadBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 export const trackerApi = {
   getDomains: () => api<TrackingDomain[]>('/api/domains'),
   getDomain: (id: string) => api<TrackingDomain>(`/api/domains/${id}`),
@@ -610,4 +666,61 @@ export const trackerApi = {
       method: 'POST',
       body: JSON.stringify({ csv }),
     }),
+  getLanders: () => api<Lander[]>('/api/landers'),
+  getLander: (id: string) => api<Lander>(`/api/landers/${id}`),
+  suggestLander: (params?: Record<string, string>) => {
+    const qs = params ? `?${new URLSearchParams(params)}` : '';
+    return api<LanderSuggestion>(`/api/landers/suggest${qs}`);
+  },
+  createLander: (data: {
+    name: string;
+    campaignId: string;
+    slug?: string;
+    rootDomain?: string;
+    publicUrl?: string;
+    entryFile?: string;
+    injectTracker?: boolean;
+    trackerAttrs?: { noViewContent?: boolean };
+  }) =>
+    api<Lander>('/api/landers', { method: 'POST', body: JSON.stringify(data) }),
+  updateLander: (
+    id: string,
+    data: Partial<{
+      name: string;
+      campaignId: string;
+      slug: string;
+      rootDomain: string;
+      publicUrl: string;
+      entryFile: string;
+      injectTracker: boolean;
+      trackerAttrs: { noViewContent?: boolean };
+      status: 'draft' | 'ready';
+    }>,
+  ) => api<Lander>(`/api/landers/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteLander: (id: string) =>
+    api<{ deleted: boolean; id: string }>(`/api/landers/${id}`, { method: 'DELETE' }),
+  uploadLanderFile: async (id: string, file: File) => {
+    const fd = new FormData();
+    fd.append('file', file);
+    const res = await adminRaw(`landers/${id}/upload`, { method: 'POST', body: fd });
+    return res.json() as Promise<Lander>;
+  },
+  uploadLanderFiles: async (id: string, files: File[]) => {
+    const fd = new FormData();
+    for (const f of files) fd.append('files', f);
+    const res = await adminRaw(`landers/${id}/upload-files`, { method: 'POST', body: fd });
+    return res.json() as Promise<Lander>;
+  },
+  reprocessLander: (id: string) =>
+    api<Lander>(`/api/landers/${id}/reprocess`, { method: 'POST' }),
+  downloadLanderRaw: async (id: string, filename: string) => {
+    const res = await adminRaw(`landers/${id}/download`);
+    const blob = await res.blob();
+    downloadBlob(blob, filename);
+  },
+  downloadLanderDeployBundle: async (id: string, filename: string) => {
+    const res = await adminRaw(`landers/${id}/deploy-bundle`);
+    const blob = await res.blob();
+    downloadBlob(blob, filename);
+  },
 };

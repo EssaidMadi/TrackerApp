@@ -13,6 +13,7 @@ import { DomainsModule } from './domains/domains.module';
 import { TrafficSourcesModule } from './traffic-sources/traffic-sources.module';
 import { ConversionEventTypesModule } from './conversion-event-types/conversion-event-types.module';
 import { PlatformSyncModule } from './platform-sync/platform-sync.module';
+import { LandersModule } from './landers/landers.module';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { PlatformSyncModule } from './platform-sync/platform-sync.module';
     TrafficSourcesModule,
     ConversionEventTypesModule,
     PlatformSyncModule,
+    LandersModule,
   ],
   controllers: [AppController],
   providers: [AppService],

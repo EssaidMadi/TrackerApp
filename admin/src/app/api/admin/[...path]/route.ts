@@ -22,7 +22,12 @@ async function proxy(req: NextRequest, context: { params: Promise<{ path: string
   if (contentType) headers.set('content-type', contentType);
 
   const hasBody = req.method !== 'GET' && req.method !== 'HEAD';
-  const body = hasBody ? await req.text() : undefined;
+  const isMultipart = contentType?.includes('multipart/form-data');
+  const body = hasBody
+    ? isMultipart
+      ? await req.arrayBuffer()
+      : await req.text()
+    : undefined;
 
   const upstream = await fetch(target.toString(), {
     method: req.method,
@@ -31,6 +36,18 @@ async function proxy(req: NextRequest, context: { params: Promise<{ path: string
   });
 
   const upstreamType = upstream.headers.get('content-type') || 'application/json';
+  const isBinary =
+    upstreamType.includes('application/zip') ||
+    upstreamType.includes('application/octet-stream');
+
+  if (isBinary) {
+    const buffer = await upstream.arrayBuffer();
+    const outHeaders = new Headers({ 'content-type': upstreamType });
+    const disposition = upstream.headers.get('content-disposition');
+    if (disposition) outHeaders.set('content-disposition', disposition);
+    return new Response(buffer, { status: upstream.status, headers: outHeaders });
+  }
+
   const text = await upstream.text();
 
   return new Response(text, {

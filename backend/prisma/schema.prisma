@@ -143,8 +143,34 @@ model Campaign {
   conversions    Conversion[]
   platformMappings CampaignPlatformMapping[]
   spendSnapshots   CampaignSpendSnapshot[]
+  landers          Lander[]
 
   @@map("campaigns")
+}
+
+enum LanderStatus {
+  draft
+  ready
+}
+
+model Lander {
+  id            String       @id @default(uuid())
+  name          String
+  slug          String       @unique
+  campaignId    String       @map("campaign_id")
+  campaign      Campaign     @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  rootDomain    String?      @map("root_domain")
+  publicUrl     String       @map("public_url")
+  storagePath   String       @map("storage_path")
+  entryFile     String       @default("index.html") @map("entry_file")
+  injectTracker Boolean      @default(true) @map("inject_tracker")
+  trackerAttrs  Json?        @map("tracker_attrs")
+  status        LanderStatus @default(draft)
+  createdAt     DateTime     @default(now()) @map("created_at")
+  updatedAt     DateTime     @updatedAt @map("updated_at")
+
+  @@index([campaignId])
+  @@map("landers")
 }
 
 model PostbackConfig {
