@@ -15,6 +15,7 @@ const links = [
   { href: '/conversion-events', label: 'Event types', icon: 'M4 7h16M4 12h10M4 17h6' },
   { href: '/traffic', label: 'Live Traffic', icon: 'M3 3v18h18M7 14l4-4 4 4 5-6' },
   { href: '/clicks', label: 'Visits', icon: 'M15 15l6 6M10 17a7 7 0 1 1 0-14 7 7 0 0 1 0 14z' },
+  { href: '/performance', label: 'Performance', icon: 'M4 19h16M6 16l3-4 4 3 5-8 4 6' },
   { href: '/conversions', label: 'Conversions', icon: 'M9 12l2 2 4-4M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z' },
 ];
 

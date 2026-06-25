@@ -351,6 +351,68 @@ export interface VisitBreakdownRow {
   revenue: number;
 }
 
+export type CreativeQuality = 'excellent' | 'good' | 'average' | 'poor' | 'risk' | 'low_data';
+
+export interface CreativePerformanceRow {
+  key: string;
+  label: string;
+  visits: number;
+  uniqueVisitors: number;
+  botVisits: number;
+  humanVisits: number;
+  botPct: string;
+  convertingVisits: number;
+  conversions: number;
+  cr: string;
+  crNum: number;
+  revenue: number;
+  epc: number;
+  quality: CreativeQuality;
+  topHeadline?: string;
+  topHeadlineCr?: string;
+  topImage?: string;
+  topImageCr?: string;
+}
+
+export interface CreativePairRow extends CreativePerformanceRow {
+  imageKey: string;
+  imageLabel: string;
+  headlineKey: string;
+  headlineLabel: string;
+}
+
+export interface CreativeRecommendation {
+  id: string;
+  severity: 'success' | 'warning' | 'danger' | 'info';
+  category: 'image' | 'headline' | 'combo' | 'publisher' | 'general';
+  title: string;
+  message: string;
+  action: string;
+  entityKey?: string;
+  entityLabel?: string;
+  metric?: string;
+}
+
+export interface CreativeReport {
+  benchmarks: {
+    avgCr: number;
+    avgBotPct: number;
+    avgEpc: number;
+    totalVisits: number;
+    minSample: number;
+  };
+  recommendations: CreativeRecommendation[];
+  images: CreativePerformanceRow[];
+  headlines: CreativePerformanceRow[];
+  pairs: CreativePairRow[];
+  summary: {
+    trackedImages: number;
+    trackedHeadlines: number;
+    trackedPairs: number;
+    totalVisits: number;
+  };
+}
+
 export interface FunnelStepMetrics {
   stepId: string;
   label: string;
@@ -544,6 +606,10 @@ export const trackerApi = {
   getVisitBreakdown: (dimension: VisitBreakdownDimension, params?: Record<string, string>) => {
     const qs = new URLSearchParams({ dimension, ...params });
     return api<VisitBreakdownRow[]>(`/api/analytics/visits/breakdown?${qs}`);
+  },
+  getCreativeReport: (params?: Record<string, string>) => {
+    const qs = params ? `?${new URLSearchParams(params)}` : '';
+    return api<CreativeReport>(`/api/analytics/creatives${qs}`);
   },
   getLiveTraffic: (params?: Record<string, string>) => {
     const qs = params ? `?${new URLSearchParams(params)}` : '';

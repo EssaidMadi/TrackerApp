@@ -3,6 +3,7 @@ import type { Response } from 'express';
 import { AnalyticsService } from './analytics.service';
 import { CampaignReportService } from './campaign-report.service';
 import { FunnelAnalyticsService } from './funnel-analytics.service';
+import { CreativeAnalyticsService } from './creative-analytics.service';
 import { ApiKeyGuard } from '../common/guards/api-key.guard';
 import type { VisitAnalyticsFilters, VisitBreakdownDimension } from './visit-filters';
 
@@ -13,6 +14,7 @@ export class AnalyticsController {
     private readonly analytics: AnalyticsService,
     private readonly campaignReport: CampaignReportService,
     private readonly funnelAnalytics: FunnelAnalyticsService,
+    private readonly creativeAnalytics: CreativeAnalyticsService,
   ) {}
 
   @Get('overview')
@@ -91,6 +93,11 @@ export class AnalyticsController {
       dimension || 'publisher',
       this.parseVisitFilters(query),
     );
+  }
+
+  @Get('creatives')
+  creativeReport(@Query() query: Record<string, string | undefined>) {
+    return this.creativeAnalytics.getCreativeReport(this.parseVisitFilters(query));
   }
 
   private parseVisitFilters(query: Record<string, string | undefined>): VisitAnalyticsFilters {
