@@ -14,6 +14,10 @@ export type CreativePerformanceRow = {
   crNum: number;
   revenue: number;
   epc: number;
+  spend: number;
+  cpv: number;
+  costPerEvent: number;
+  profit: number;
   quality: CreativeQuality;
   topHeadline?: string;
   topHeadlineCr?: string;
@@ -48,7 +52,21 @@ export type CreativeBenchmarks = {
   minSample: number;
   totalEvents: number;
   metricLabel: string;
+  totalSpend: number;
+  avgCpv: number;
+  avgCostPerEvent: number;
 };
+
+function fmtMoney(n: number): string {
+  return `$${n.toFixed(2)}`;
+}
+
+function spendLine(row: CreativePerformanceRow): string {
+  if (row.spend <= 0) return '';
+  const parts = [`${fmtMoney(row.spend)} spend`, `${fmtMoney(row.cpv)} CPV`];
+  if (row.conversions > 0) parts.push(`${fmtMoney(row.costPerEvent)}/event`);
+  return ` ${parts.join(', ')}.`;
+}
 
 export function scoreCreativeQuality(
   visits: number,
@@ -101,11 +119,11 @@ export function buildCreativeRecommendations(
       severity: 'success',
       category: 'image',
       title: `Scale image: ${bestImage.label}`,
-      message: `${rateLabel} ${bestImage.cr}% vs avg ${benchmarks.avgCr.toFixed(2)}% on ${bestImage.visits} visits (${bestImage.conversions} events). Bot ${bestImage.botPct}%.`,
-      action: 'Increase budget on this creative asset.',
+      message: `${rateLabel} ${bestImage.cr}% vs avg ${benchmarks.avgCr.toFixed(2)}% on ${bestImage.visits} visits (${bestImage.conversions} events). Bot ${bestImage.botPct}%.${spendLine(bestImage)}`,
+      action: benchmarks.totalSpend > 0 ? 'Increase budget on this creative — strong rate at efficient spend.' : 'Increase budget on this creative asset.',
       entityKey: bestImage.key,
       entityLabel: bestImage.label,
-      metric: `${bestImage.cr}%`,
+      metric: bestImage.spend > 0 ? `${bestImage.cr}% · ${fmtMoney(bestImage.cpv)} CPV` : `${bestImage.cr}%`,
     });
   }
 
@@ -118,12 +136,31 @@ export function buildCreativeRecommendations(
       severity: 'danger',
       category: 'image',
       title: `Pause or replace image: ${worstImage.label}`,
-      message: `${rateLabel} ${worstImage.cr}% with ${worstImage.visits} visits. ${worstImage.botPct}% bot traffic.`,
+      message: `${rateLabel} ${worstImage.cr}% with ${worstImage.visits} visits.${spendLine(worstImage)} ${worstImage.botPct}% bot traffic.`,
       action: 'Reduce spend or swap this creative.',
       entityKey: worstImage.key,
       entityLabel: worstImage.label,
-      metric: `${worstImage.cr}%`,
+      metric: worstImage.spend > 0 ? `${worstImage.cr}% · ${fmtMoney(worstImage.spend)} spend` : `${worstImage.cr}%`,
     });
+  }
+
+  if (benchmarks.totalSpend > 0) {
+    for (const img of eligibleImages
+      .filter((r) => r.spend >= 5 && r.conversions === 0 && r.visits >= min)
+      .sort((a, b) => b.spend - a.spend)
+      .slice(0, 2)) {
+      recs.push({
+        id: `waste-spend-image-${img.key}`,
+        severity: 'warning',
+        category: 'image',
+        title: `Spend with no events: ${img.label}`,
+        message: `${fmtMoney(img.spend)} allocated spend on ${img.visits} visits but 0 ${rateLabel.replace(' rate', '')} events.`,
+        action: 'Pause or replace this creative to stop wasted spend.',
+        entityKey: img.key,
+        entityLabel: img.label,
+        metric: fmtMoney(img.spend),
+      });
+    }
   }
 
   const bestHeadline = [...eligibleHeadlines].sort((a, b) => b.crNum - a.crNum || b.visits - a.visits)[0];
@@ -133,11 +170,11 @@ export function buildCreativeRecommendations(
       severity: 'success',
       category: 'headline',
       title: `Winning headline: "${bestHeadline.label}"`,
-      message: `${rateLabel} ${bestHeadline.cr}% on ${bestHeadline.visits} visits (${bestHeadline.conversions} events). Reuse on other images.`,
+      message: `${rateLabel} ${bestHeadline.cr}% on ${bestHeadline.visits} visits (${bestHeadline.conversions} events).${spendLine(bestHeadline)} Reuse on other images.`,
       action: 'Duplicate headline across top images.',
       entityKey: bestHeadline.key,
       entityLabel: bestHeadline.label,
-      metric: `${bestHeadline.cr}%`,
+      metric: bestHeadline.spend > 0 ? `${bestHeadline.cr}% · ${fmtMoney(bestHeadline.cpv)} CPV` : `${bestHeadline.cr}%`,
     });
   }
 
@@ -165,11 +202,11 @@ export function buildCreativeRecommendations(
       severity: 'success',
       category: 'combo',
       title: 'Best image + headline combo',
-      message: `"${bestPair.headlineLabel}" on ${bestPair.imageLabel} — ${rateLabel} ${bestPair.cr}% (${bestPair.conversions} events), $${bestPair.revenue.toFixed(2)} revenue.`,
+      message: `"${bestPair.headlineLabel}" on ${bestPair.imageLabel} — ${rateLabel} ${bestPair.cr}% (${bestPair.conversions} events), $${bestPair.revenue.toFixed(2)} revenue.${spendLine(bestPair)}`,
       action: 'Make this your primary ad combination.',
       entityKey: bestPair.key,
       entityLabel: `${bestPair.imageLabel} × ${bestPair.headlineLabel}`,
-      metric: `${bestPair.cr}%`,
+      metric: bestPair.spend > 0 ? `${bestPair.cr}% · ${fmtMoney(bestPair.costPerEvent)}/event` : `${bestPair.cr}%`,
     });
   }
 

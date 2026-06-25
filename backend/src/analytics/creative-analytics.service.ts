@@ -17,6 +17,7 @@ import {
 
 type ClickRow = {
   clickId: string;
+  campaignId: string;
   assetId: string | null;
   contentName: string | null;
   adId: string | null;
@@ -51,6 +52,7 @@ export class CreativeAnalyticsService {
       where: clickWhere,
       select: {
         clickId: true,
+        campaignId: true,
         assetId: true,
         contentName: true,
         adId: true,
@@ -59,6 +61,8 @@ export class CreativeAnalyticsService {
         visitorId: true,
       },
     });
+
+    const totalSpend = await this.fetchCampaignSpend(filters, clicks);
 
     const convWhere = {
       eventType: { in: event.slugs },
@@ -114,9 +118,16 @@ export class CreativeAnalyticsService {
       hi.set(image.label, hiRow);
     }
 
-    const benchmarks = this.computeBenchmarks(clicks, convByClick, conversions.length, metricLabel);
+    const benchmarks = this.computeBenchmarks(
+      clicks,
+      convByClick,
+      conversions.length,
+      metricLabel,
+      totalSpend,
+    );
 
-    const images = this.finalizeRows(imageGroups, benchmarks, (key) => {
+    const images = this.applySpend(
+      this.finalizeRows(imageGroups, benchmarks, (key) => {
       const stats = imageHeadlineStats.get(key);
       if (!stats) return {};
       let best = { label: '', cr: 0 };
@@ -127,9 +138,13 @@ export class CreativeAnalyticsService {
       return best.label
         ? { topHeadline: best.label, topHeadlineCr: best.cr.toFixed(2) }
         : {};
-    });
+    }),
+      totalSpend,
+      benchmarks.totalVisits,
+    );
 
-    const headlines = this.finalizeRows(headlineGroups, benchmarks, (key) => {
+    const headlines = this.applySpend(
+      this.finalizeRows(headlineGroups, benchmarks, (key) => {
       const stats = headlineImageStats.get(key);
       if (!stats) return {};
       let best = { label: '', cr: 0 };
@@ -138,17 +153,26 @@ export class CreativeAnalyticsService {
         if (cr > best.cr) best = { label: img, cr };
       }
       return best.label ? { topImage: best.label, topImageCr: best.cr.toFixed(2) } : {};
-    });
+    }),
+      totalSpend,
+      benchmarks.totalVisits,
+    );
 
-    const pairs: CreativePairRow[] = Array.from(pairGroups.entries())
-      .map(([key, g]) => ({
-        ...this.toPerformanceRow(key, g.label, g, benchmarks),
-        imageKey: g.imageKey,
-        imageLabel: g.imageLabel,
-        headlineKey: g.headlineKey,
-        headlineLabel: g.headlineLabel,
-      }))
-      .sort((a, b) => b.crNum - a.crNum || b.visits - a.visits);
+    const pairs: CreativePairRow[] = this.applySpend(
+      Array.from(pairGroups.entries())
+        .map(([key, g]) => ({
+          ...this.toPerformanceRow(key, g.label, g, benchmarks),
+          imageKey: g.imageKey,
+          imageLabel: g.imageLabel,
+          headlineKey: g.headlineKey,
+          headlineLabel: g.headlineLabel,
+        }))
+        .sort((a, b) => b.crNum - a.crNum || b.visits - a.visits),
+      totalSpend,
+      benchmarks.totalVisits,
+    );
+
+    const totalRevenue = conversions.reduce((sum, c) => sum + c.revenue, 0);
 
     const recommendations = buildCreativeRecommendations(
       images,
@@ -183,8 +207,57 @@ export class CreativeAnalyticsService {
         trackedHeadlines: headlines.filter((r) => r.key !== '(unknown)').length,
         trackedPairs: pairs.length,
         totalVisits: benchmarks.totalVisits,
+        totalSpend,
+        avgCpv: benchmarks.avgCpv,
+        avgCostPerEvent: benchmarks.avgCostPerEvent,
+        totalRevenue,
+        profit: totalRevenue - totalSpend,
       },
     };
+  }
+
+  private async fetchCampaignSpend(
+    filters: VisitAnalyticsFilters,
+    clicks: ClickRow[],
+  ): Promise<number> {
+    const fromDate = filters.from ? new Date(filters.from) : undefined;
+    const toDate = filters.to ? new Date(filters.to) : new Date();
+    if (!fromDate) return 0;
+
+    const campaignIds = filters.campaignId
+      ? [filters.campaignId]
+      : [...new Set(clicks.map((c) => c.campaignId))];
+
+    if (campaignIds.length === 0) return 0;
+
+    const agg = await this.prisma.campaignSpendSnapshot.aggregate({
+      where: {
+        campaignId: { in: campaignIds },
+        date: { gte: fromDate, lte: toDate },
+      },
+      _sum: { spend: true },
+    });
+
+    return agg._sum.spend || 0;
+  }
+
+  private applySpend<T extends CreativePerformanceRow>(
+    rows: T[],
+    totalSpend: number,
+    totalVisits: number,
+  ): T[] {
+    return rows.map((row) => {
+      const spend = totalVisits > 0 ? totalSpend * (row.visits / totalVisits) : 0;
+      const cpv = row.visits > 0 ? spend / row.visits : 0;
+      const costPerEvent = row.conversions > 0 ? spend / row.conversions : 0;
+      return {
+        ...row,
+        spend,
+        cpv,
+        costPerEvent,
+        profit: row.revenue - spend,
+      };
+    });
   }
 
   private resolveImage(click: ClickRow): { key: string; label: string } {
@@ -278,6 +351,7 @@ export class CreativeAnalyticsService {
     convByClick: Map<string, { events: number; revenue: number }>,
     totalEvents: number,
     metricLabel: string,
+    totalSpend: number,
   ): CreativeBenchmarks {
     const totalVisits = clicks.length;
     let converting = 0;
@@ -299,6 +373,9 @@ export class CreativeAnalyticsService {
       minSample: 15,
       totalEvents,
       metricLabel,
+      totalSpend,
+      avgCpv: totalVisits > 0 ? totalSpend / totalVisits : 0,
+      avgCostPerEvent: totalEvents > 0 ? totalSpend / totalEvents : 0,
     };
   }
 
@@ -340,6 +417,10 @@ export class CreativeAnalyticsService {
       crNum,
       revenue: g.revenue,
       epc: g.visits > 0 ? g.revenue / g.visits : 0,
+      spend: 0,
+      cpv: 0,
+      costPerEvent: 0,
+      profit: g.revenue,
       quality: scoreCreativeQuality(g.visits, crNum, botNum, benchmarks),
     };
   }

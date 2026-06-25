@@ -172,14 +172,37 @@ export default function PerformancePage() {
       )}
 
       {summary && report && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3 mb-6">
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3 mb-6">
           <StatCard label="Visits" value={summary.visits} />
           <StatCard label={metricLabel} value={`${report.benchmarks.avgCr.toFixed(2)}%`} />
           <StatCard label={`${eventCountLabel}s`} value={report.selectedEvent.totalEvents} />
+          <StatCard
+            label="Campaign spend"
+            value={report.summary.totalSpend > 0 ? `$${report.summary.totalSpend.toFixed(2)}` : '—'}
+          />
+          <StatCard
+            label="CPV"
+            value={report.summary.totalSpend > 0 ? `$${report.summary.avgCpv.toFixed(3)}` : '—'}
+          />
+          <StatCard
+            label="Cost / event"
+            value={
+              report.summary.avgCostPerEvent > 0
+                ? `$${report.summary.avgCostPerEvent.toFixed(2)}`
+                : '—'
+            }
+          />
           <StatCard label="Avg bot %" value={`${report.benchmarks.avgBotPct.toFixed(1)}%`} />
           <StatCard label="Images tracked" value={report.summary.trackedImages} />
-          <StatCard label="Headlines tracked" value={report.summary.trackedHeadlines} />
         </div>
+      )}
+
+      {report && report.summary.totalSpend === 0 && report.summary.totalVisits > 0 && (
+        <Card className="mb-6 border-zinc-200 bg-zinc-50">
+          <p className="text-xs text-zinc-600">
+            No campaign spend synced for this period. Import spend via Integrations or select a campaign with Mediago sync.
+          </p>
+        </Card>
       )}
 
       <div className="flex flex-wrap gap-2 mb-6">
@@ -361,6 +384,9 @@ function CreativeTable({
             <Th>Visits</Th>
             <Th>{eventCountLabel}s</Th>
             <Th>{metricLabel}</Th>
+            <Th>Spend</Th>
+            <Th>CPV</Th>
+            <Th>Cost / event</Th>
             <Th>Bots %</Th>
             <Th>Revenue</Th>
             <Th>EPC</Th>
@@ -380,6 +406,9 @@ function CreativeTable({
                 <Td>{r.visits}</Td>
                 <Td>{r.conversions}</Td>
                 <Td>{r.cr}%</Td>
+                <Td>{r.spend > 0 ? `$${r.spend.toFixed(2)}` : '—'}</Td>
+                <Td>{r.spend > 0 ? `$${r.cpv.toFixed(3)}` : '—'}</Td>
+                <Td>{r.conversions > 0 && r.spend > 0 ? `$${r.costPerEvent.toFixed(2)}` : '—'}</Td>
                 <Td>
                   <span className={parseFloat(r.botPct) >= 30 ? 'text-red-600 font-medium' : ''}>
                     {r.botPct}%
@@ -423,6 +452,9 @@ function ComboTable({
             <Th>Visits</Th>
             <Th>{eventCountLabel}s</Th>
             <Th>{metricLabel}</Th>
+            <Th>Spend</Th>
+            <Th>CPV</Th>
+            <Th>Cost / event</Th>
             <Th>Bots %</Th>
             <Th>Revenue</Th>
             <Th>Verdict</Th>
@@ -439,6 +471,9 @@ function ComboTable({
                 <Td>{r.visits}</Td>
                 <Td>{r.conversions}</Td>
                 <Td>{r.cr}%</Td>
+                <Td>{r.spend > 0 ? `$${r.spend.toFixed(2)}` : '—'}</Td>
+                <Td>{r.spend > 0 ? `$${r.cpv.toFixed(3)}` : '—'}</Td>
+                <Td>{r.conversions > 0 && r.spend > 0 ? `$${r.costPerEvent.toFixed(2)}` : '—'}</Td>
                 <Td>
                   <span className={parseFloat(r.botPct) >= 30 ? 'text-red-600 font-medium' : ''}>
                     {r.botPct}%

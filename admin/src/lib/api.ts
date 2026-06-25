@@ -367,6 +367,10 @@ export interface CreativePerformanceRow {
   crNum: number;
   revenue: number;
   epc: number;
+  spend: number;
+  cpv: number;
+  costPerEvent: number;
+  profit: number;
   quality: CreativeQuality;
   topHeadline?: string;
   topHeadlineCr?: string;
@@ -412,6 +416,9 @@ export interface CreativeReport {
     minSample: number;
     totalEvents: number;
     metricLabel: string;
+    totalSpend: number;
+    avgCpv: number;
+    avgCostPerEvent: number;
   };
   recommendations: CreativeRecommendation[];
   images: CreativePerformanceRow[];
@@ -422,6 +429,11 @@ export interface CreativeReport {
     trackedHeadlines: number;
     trackedPairs: number;
     totalVisits: number;
+    totalSpend: number;
+    avgCpv: number;
+    avgCostPerEvent: number;
+    totalRevenue: number;
+    profit: number;
   };
 }
 

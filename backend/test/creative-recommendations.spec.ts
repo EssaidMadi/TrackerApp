@@ -13,6 +13,9 @@ describe('creative recommendations', () => {
     minSample: 15,
     totalEvents: 50,
     metricLabel: 'Call Click rate',
+    totalSpend: 100,
+    avgCpv: 0.1,
+    avgCostPerEvent: 2,
   };
 
   const row = (overrides: Partial<CreativePerformanceRow>): CreativePerformanceRow => ({
@@ -29,6 +32,10 @@ describe('creative recommendations', () => {
     crNum: 10,
     revenue: 25,
     epc: 0.5,
+    spend: 10,
+    cpv: 0.2,
+    costPerEvent: 2,
+    profit: 15,
     quality: 'good',
     ...overrides,
   });
@@ -47,6 +54,7 @@ describe('creative recommendations', () => {
     const scale = recs.find((r) => r.category === 'image' && r.severity === 'success');
     expect(scale).toBeDefined();
     expect(scale?.message).toContain('Call Click rate');
+    expect(scale?.message).toContain('spend');
   });
 
   it('returns zero-event diagnostic when no events recorded', () => {
@@ -65,5 +73,15 @@ describe('creative recommendations', () => {
       totalEvents: 0,
     }, 'sent');
     expect(recs[0].message).toContain('Recorded');
+  });
+
+  it('warns on spend with no events', () => {
+    const recs = buildCreativeRecommendations(
+      [row({ key: 'img-waste', label: 'waste-img', conversions: 0, convertingVisits: 0, crNum: 0, cr: '0.00', spend: 20 })],
+      [],
+      [],
+      benchmarks,
+    );
+    expect(recs.some((r) => r.id.startsWith('waste-spend-image-'))).toBe(true);
   });
 });

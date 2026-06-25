@@ -4,6 +4,7 @@ describe('CreativeAnalyticsService', () => {
   const clicks = [
     {
       clickId: 'c1',
+      campaignId: 'camp-1',
       assetId: 'img-a',
       contentName: null,
       adId: null,
@@ -13,6 +14,7 @@ describe('CreativeAnalyticsService', () => {
     },
     {
       clickId: 'c2',
+      campaignId: 'camp-1',
       assetId: 'img-b',
       contentName: null,
       adId: null,
@@ -43,6 +45,9 @@ describe('CreativeAnalyticsService', () => {
         );
       }),
     },
+    campaignSpendSnapshot: {
+      aggregate: jest.fn().mockResolvedValue({ _sum: { spend: 100 } }),
+    },
   };
 
   const service = new CreativeAnalyticsService(prisma as never);
@@ -53,7 +58,10 @@ describe('CreativeAnalyticsService', () => {
   });
 
   it('counts call_click events in recorded mode without status filter', async () => {
-    const report = await service.getCreativeReport({}, { eventType: 'call_click', countMode: 'recorded' });
+    const report = await service.getCreativeReport(
+      { from: '2026-06-01T00:00:00.000Z', to: '2026-06-02T00:00:00.000Z' },
+      { eventType: 'call_click', countMode: 'recorded' },
+    );
 
     expect(convWhere).toMatchObject({
       eventType: { in: ['call_click'] },
@@ -66,7 +74,10 @@ describe('CreativeAnalyticsService', () => {
   });
 
   it('counts click_button events including clickbutton alias slugs', async () => {
-    const report = await service.getCreativeReport({}, { eventType: 'click_button', countMode: 'recorded' });
+    const report = await service.getCreativeReport(
+      { from: '2026-06-01T00:00:00.000Z', to: '2026-06-02T00:00:00.000Z' },
+      { eventType: 'click_button', countMode: 'recorded' },
+    );
 
     expect(convWhere).toMatchObject({
       eventType: { in: expect.arrayContaining(['click_button', 'clickbutton']) },
@@ -77,8 +88,23 @@ describe('CreativeAnalyticsService', () => {
   });
 
   it('applies status sent filter in sent mode', async () => {
-    await service.getCreativeReport({}, { eventType: 'call_click', countMode: 'sent' });
+    await service.getCreativeReport(
+      { from: '2026-06-01T00:00:00.000Z', to: '2026-06-02T00:00:00.000Z' },
+      { eventType: 'call_click', countMode: 'sent' },
+    );
 
     expect(convWhere).toMatchObject({ status: 'sent' });
+  });
+
+  it('allocates campaign spend proportionally by visits', async () => {
+    const report = await service.getCreativeReport(
+      { from: '2026-06-01T00:00:00.000Z', to: '2026-06-02T00:00:00.000Z', campaignId: 'camp-1' },
+      { eventType: 'call_click', countMode: 'recorded' },
+    );
+
+    expect(report.summary.totalSpend).toBe(100);
+    expect(report.benchmarks.avgCpv).toBe(50);
+    expect(report.images.find((r) => r.key === 'img-a')?.spend).toBe(50);
+    expect(report.images.find((r) => r.key === 'img-b')?.spend).toBe(50);
   });
 });
