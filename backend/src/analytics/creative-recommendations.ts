@@ -46,6 +46,8 @@ export type CreativeBenchmarks = {
   avgEpc: number;
   totalVisits: number;
   minSample: number;
+  totalEvents: number;
+  metricLabel: string;
 };
 
 export function scoreCreativeQuality(
@@ -67,9 +69,26 @@ export function buildCreativeRecommendations(
   headlines: CreativePerformanceRow[],
   pairs: CreativePairRow[],
   benchmarks: CreativeBenchmarks,
+  countMode: 'recorded' | 'sent' = 'recorded',
 ): CreativeRecommendation[] {
   const recs: CreativeRecommendation[] = [];
   const min = benchmarks.minSample;
+  const rateLabel = benchmarks.metricLabel;
+
+  if (benchmarks.totalEvents === 0 && benchmarks.totalVisits > 0) {
+    recs.push({
+      id: 'no-events',
+      severity: 'info',
+      category: 'general',
+      title: `No ${rateLabel.replace(' rate', '')} events in this period`,
+      message:
+        countMode === 'sent'
+          ? `No postbacks marked "sent" for this event. Try "Recorded" mode or check Mediago postback config.`
+          : `No events recorded in the database. Check LP Funnel page and ensure trackCallClick / registerConversion fire on the LP.`,
+      action: 'Verify tracking on the landing page or switch the optimize-for event.',
+    });
+    return recs;
+  }
 
   const eligibleImages = images.filter((r) => r.visits >= min && r.key !== '(unknown)');
   const eligibleHeadlines = headlines.filter((r) => r.visits >= min && r.key !== '(unknown)');
@@ -82,11 +101,11 @@ export function buildCreativeRecommendations(
       severity: 'success',
       category: 'image',
       title: `Scale image: ${bestImage.label}`,
-      message: `CR ${bestImage.cr}% vs campaign avg ${benchmarks.avgCr.toFixed(2)}% on ${bestImage.visits} visits. Bot traffic ${bestImage.botPct}%.`,
+      message: `${rateLabel} ${bestImage.cr}% vs avg ${benchmarks.avgCr.toFixed(2)}% on ${bestImage.visits} visits (${bestImage.conversions} events). Bot ${bestImage.botPct}%.`,
       action: 'Increase budget on this creative asset.',
       entityKey: bestImage.key,
       entityLabel: bestImage.label,
-      metric: `${bestImage.cr}% CR`,
+      metric: `${bestImage.cr}%`,
     });
   }
 
@@ -99,11 +118,11 @@ export function buildCreativeRecommendations(
       severity: 'danger',
       category: 'image',
       title: `Pause or replace image: ${worstImage.label}`,
-      message: `CR ${worstImage.cr}% with ${worstImage.visits} visits. ${worstImage.botPct}% bot traffic.`,
+      message: `${rateLabel} ${worstImage.cr}% with ${worstImage.visits} visits. ${worstImage.botPct}% bot traffic.`,
       action: 'Reduce spend or swap this creative.',
       entityKey: worstImage.key,
       entityLabel: worstImage.label,
-      metric: `${worstImage.cr}% CR`,
+      metric: `${worstImage.cr}%`,
     });
   }
 
@@ -114,11 +133,11 @@ export function buildCreativeRecommendations(
       severity: 'success',
       category: 'headline',
       title: `Winning headline: "${bestHeadline.label}"`,
-      message: `CR ${bestHeadline.cr}% on ${bestHeadline.visits} visits. Reuse this angle on other images.`,
+      message: `${rateLabel} ${bestHeadline.cr}% on ${bestHeadline.visits} visits (${bestHeadline.conversions} events). Reuse on other images.`,
       action: 'Duplicate headline across top images.',
       entityKey: bestHeadline.key,
       entityLabel: bestHeadline.label,
-      metric: `${bestHeadline.cr}% CR`,
+      metric: `${bestHeadline.cr}%`,
     });
   }
 
@@ -131,26 +150,26 @@ export function buildCreativeRecommendations(
       severity: 'warning',
       category: 'headline',
       title: `Weak headline: "${worstHeadline.label}"`,
-      message: `Only ${worstHeadline.cr}% CR from ${worstHeadline.visits} visits.`,
+      message: `${rateLabel} only ${worstHeadline.cr}% from ${worstHeadline.visits} visits.`,
       action: 'Test a new headline variant.',
       entityKey: worstHeadline.key,
       entityLabel: worstHeadline.label,
-      metric: `${worstHeadline.cr}% CR`,
+      metric: `${worstHeadline.cr}%`,
     });
   }
 
   const bestPair = [...eligiblePairs].sort((a, b) => b.crNum - a.crNum || b.revenue - a.revenue)[0];
-  if (bestPair && bestPair.crNum >= benchmarks.avgCr) {
+  if (bestPair && bestPair.crNum >= benchmarks.avgCr && bestPair.crNum > 0) {
     recs.push({
       id: `best-combo-${bestPair.key}`,
       severity: 'success',
       category: 'combo',
       title: 'Best image + headline combo',
-      message: `"${bestPair.headlineLabel}" on ${bestPair.imageLabel} — ${bestPair.cr}% CR, $${bestPair.revenue.toFixed(2)} revenue.`,
+      message: `"${bestPair.headlineLabel}" on ${bestPair.imageLabel} — ${rateLabel} ${bestPair.cr}% (${bestPair.conversions} events), $${bestPair.revenue.toFixed(2)} revenue.`,
       action: 'Make this your primary ad combination.',
       entityKey: bestPair.key,
       entityLabel: `${bestPair.imageLabel} × ${bestPair.headlineLabel}`,
-      metric: `${bestPair.cr}% CR`,
+      metric: `${bestPair.cr}%`,
     });
   }
 

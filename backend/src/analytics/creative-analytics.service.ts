@@ -1,6 +1,5 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { ConversionEventTypesService } from '../conversion-event-types/conversion-event-types.service';
 import { buildClickWhere, type VisitAnalyticsFilters } from './visit-filters';
 import {
   buildCreativeRecommendations,
@@ -8,8 +7,13 @@ import {
   type CreativeBenchmarks,
   type CreativePairRow,
   type CreativePerformanceRow,
-  type CreativeRecommendation,
 } from './creative-recommendations';
+import {
+  metricLabelForEvent,
+  parseCreativeCountMode,
+  resolveCreativeEventSlugs,
+  type CreativeReportOptions,
+} from './creative-event-resolver';
 
 type ClickRow = {
   clickId: string;
@@ -34,12 +38,13 @@ type GroupAcc = {
 
 @Injectable()
 export class CreativeAnalyticsService {
-  constructor(
-    private readonly prisma: PrismaService,
-    private readonly eventTypes: ConversionEventTypesService,
-  ) {}
+  constructor(private readonly prisma: PrismaService) {}
 
-  async getCreativeReport(filters: VisitAnalyticsFilters) {
+  async getCreativeReport(filters: VisitAnalyticsFilters, options: CreativeReportOptions = {}) {
+    const event = resolveCreativeEventSlugs(options.eventType);
+    const countMode = parseCreativeCountMode(options.countMode);
+    const metricLabel = metricLabelForEvent(event.label);
+
     const clickWhere = buildClickWhere(filters);
 
     const clicks = await this.prisma.click.findMany({
@@ -55,13 +60,15 @@ export class CreativeAnalyticsService {
       },
     });
 
-    const convWhere = await this.eventTypes.applyConversionCountFilter({
-      status: 'sent',
+    const convWhere = {
+      eventType: { in: event.slugs },
       click: { is: clickWhere },
-    });
+      ...(countMode === 'sent' ? { status: 'sent' as const } : {}),
+    };
+
     const conversions = await this.prisma.conversion.findMany({
       where: convWhere,
-      select: { clickId: true, revenue: true },
+      select: { clickId: true, revenue: true, eventType: true },
     });
 
     const convByClick = new Map<string, { events: number; revenue: number }>();
@@ -74,7 +81,10 @@ export class CreativeAnalyticsService {
 
     const imageGroups = new Map<string, GroupAcc>();
     const headlineGroups = new Map<string, GroupAcc>();
-    const pairGroups = new Map<string, GroupAcc & { imageKey: string; imageLabel: string; headlineKey: string; headlineLabel: string }>();
+    const pairGroups = new Map<
+      string,
+      GroupAcc & { imageKey: string; imageLabel: string; headlineKey: string; headlineLabel: string }
+    >();
 
     const imageHeadlineStats = new Map<string, Map<string, { visits: number; converting: number }>>();
     const headlineImageStats = new Map<string, Map<string, { visits: number; converting: number }>>();
@@ -104,9 +114,9 @@ export class CreativeAnalyticsService {
       hi.set(image.label, hiRow);
     }
 
-    const benchmarks = this.computeBenchmarks(clicks, convByClick);
+    const benchmarks = this.computeBenchmarks(clicks, convByClick, conversions.length, metricLabel);
 
-    const images = this.finalizeRows(imageGroups, benchmarks, (key, row) => {
+    const images = this.finalizeRows(imageGroups, benchmarks, (key) => {
       const stats = imageHeadlineStats.get(key);
       if (!stats) return {};
       let best = { label: '', cr: 0 };
@@ -119,7 +129,7 @@ export class CreativeAnalyticsService {
         : {};
     });
 
-    const headlines = this.finalizeRows(headlineGroups, benchmarks, (key, row) => {
+    const headlines = this.finalizeRows(headlineGroups, benchmarks, (key) => {
       const stats = headlineImageStats.get(key);
       if (!stats) return {};
       let best = { label: '', cr: 0 };
@@ -140,9 +150,29 @@ export class CreativeAnalyticsService {
       }))
       .sort((a, b) => b.crNum - a.crNum || b.visits - a.visits);
 
-    const recommendations = buildCreativeRecommendations(images, headlines, pairs, benchmarks);
+    const recommendations = buildCreativeRecommendations(
+      images,
+      headlines,
+      pairs,
+      benchmarks,
+      countMode,
+    );
+
+    const visitsWithEvent = benchmarks.totalVisits > 0
+      ? Array.from(convByClick.keys()).filter((cid) => clicks.some((c) => c.clickId === cid)).length
+      : 0;
 
     return {
+      selectedEvent: {
+        slug: event.stepId,
+        label: event.label,
+        slugs: event.slugs,
+        totalEvents: conversions.length,
+        visitsWithEvent,
+        ratePct: benchmarks.avgCr.toFixed(2),
+      },
+      countMode,
+      metricLabel,
       benchmarks,
       recommendations,
       images,
@@ -246,6 +276,8 @@ export class CreativeAnalyticsService {
   private computeBenchmarks(
     clicks: ClickRow[],
     convByClick: Map<string, { events: number; revenue: number }>,
+    totalEvents: number,
+    metricLabel: string,
   ): CreativeBenchmarks {
     const totalVisits = clicks.length;
     let converting = 0;
@@ -265,18 +297,20 @@ export class CreativeAnalyticsService {
       avgBotPct: totalVisits > 0 ? (botVisits / totalVisits) * 100 : 0,
       avgEpc: totalVisits > 0 ? revenue / totalVisits : 0,
       minSample: 15,
+      totalEvents,
+      metricLabel,
     };
   }
 
   private finalizeRows(
     groups: Map<string, GroupAcc>,
     benchmarks: CreativeBenchmarks,
-    extra: (key: string, row: GroupAcc) => Partial<CreativePerformanceRow>,
+    extra: (key: string) => Partial<CreativePerformanceRow>,
   ): CreativePerformanceRow[] {
     return Array.from(groups.entries())
       .map(([key, g]) => ({
         ...this.toPerformanceRow(key, g.label, g, benchmarks),
-        ...extra(key, g),
+        ...extra(key),
       }))
       .sort((a, b) => b.crNum - a.crNum || b.visits - a.visits);
   }

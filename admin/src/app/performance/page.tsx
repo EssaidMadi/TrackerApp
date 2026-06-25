@@ -30,6 +30,14 @@ import {
 
 type Tab = 'dashboard' | 'images' | 'headlines' | 'combos';
 
+const PERFORMANCE_EVENT_OPTIONS = [
+  { id: 'call_click', label: 'Call Click' },
+  { id: 'click_button', label: 'Click Button' },
+  { id: 'lead', label: 'Lead' },
+  { id: 'call_connected', label: 'Call Connected' },
+  { id: 'viewcontent', label: 'View Content' },
+];
+
 const QUALITY_TONE: Record<
   CreativeQuality,
   'success' | 'warning' | 'danger' | 'neutral' | 'info'
@@ -62,6 +70,8 @@ const SEV_TONE: Record<CreativeRecommendation['severity'], 'success' | 'warning'
 export default function PerformancePage() {
   const [range, setRange] = useState<DateRange>(buildPresets()[2]);
   const [campaignId, setCampaignId] = useState('');
+  const [eventType, setEventType] = useState('call_click');
+  const [countMode, setCountMode] = useState<'recorded' | 'sent'>('recorded');
   const [tab, setTab] = useState<Tab>('dashboard');
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [summary, setSummary] = useState<VisitSummary | null>(null);
@@ -71,6 +81,8 @@ export default function PerformancePage() {
   const params = {
     from: range.from,
     to: range.to,
+    eventType,
+    countMode,
     ...(campaignId ? { campaignId } : {}),
   };
 
@@ -88,7 +100,7 @@ export default function PerformancePage() {
       })
       .catch(console.error)
       .finally(() => setLoading(false));
-  }, [range, campaignId]);
+  }, [range, campaignId, eventType, countMode]);
 
   useEffect(() => {
     load();
@@ -96,11 +108,14 @@ export default function PerformancePage() {
 
   if (loading) return <Loading label="Loading creative performance…" />;
 
+  const metricLabel = report?.metricLabel ?? 'Conversion rate';
+  const eventCountLabel = report?.selectedEvent.label ?? 'Events';
+
   return (
     <div>
       <PageHeader
         title="Creative Performance"
-        description="Image vs headline analysis with automated recommendations. Uses asset_id (image) and ad_title (headline) from your click URL."
+        description="Image vs headline analysis with automated recommendations. Optimize for a specific LP event — uses asset_id (image) and ad_title (headline) from your click URL."
       />
 
       <div className="mb-4">
@@ -120,16 +135,50 @@ export default function PerformancePage() {
             </option>
           ))}
         </Select>
+        <Select
+          className="w-auto min-w-[180px]"
+          value={eventType}
+          onChange={(e) => setEventType(e.target.value)}
+          aria-label="Optimize for event"
+        >
+          {PERFORMANCE_EVENT_OPTIONS.map((opt) => (
+            <option key={opt.id} value={opt.id}>
+              Optimize: {opt.label}
+            </option>
+          ))}
+        </Select>
+        <Select
+          className="w-auto min-w-[160px]"
+          value={countMode}
+          onChange={(e) => setCountMode(e.target.value as 'recorded' | 'sent')}
+          aria-label="Count mode"
+        >
+          <option value="recorded">Recorded (all events)</option>
+          <option value="sent">Postback sent only</option>
+        </Select>
       </FilterBar>
+
+      {report && report.selectedEvent.totalEvents === 0 && report.summary.totalVisits > 0 && (
+        <Card className="mb-6 border-amber-200 bg-amber-50">
+          <p className="text-sm font-medium text-amber-900">
+            No {report.selectedEvent.label} events in this period
+          </p>
+          <p className="text-xs text-amber-800 mt-1">
+            {countMode === 'sent'
+              ? 'No postbacks marked "sent" for this event. Switch to Recorded mode, or check Mediago postback config on the LP Funnel page.'
+              : 'No events recorded in the database. Check the LP Funnel page and verify trackCallClick / registerConversion fire on your landing page.'}
+          </p>
+        </Card>
+      )}
 
       {summary && report && (
         <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3 mb-6">
           <StatCard label="Visits" value={summary.visits} />
-          <StatCard label="Avg CR" value={`${report.benchmarks.avgCr.toFixed(2)}%`} />
+          <StatCard label={metricLabel} value={`${report.benchmarks.avgCr.toFixed(2)}%`} />
+          <StatCard label={`${eventCountLabel}s`} value={report.selectedEvent.totalEvents} />
           <StatCard label="Avg bot %" value={`${report.benchmarks.avgBotPct.toFixed(1)}%`} />
           <StatCard label="Images tracked" value={report.summary.trackedImages} />
           <StatCard label="Headlines tracked" value={report.summary.trackedHeadlines} />
-          <StatCard label="Combos" value={report.summary.trackedPairs} />
         </div>
       )}
 
@@ -164,6 +213,8 @@ export default function PerformancePage() {
         <CreativeTable
           title="Performance by image (asset_id)"
           subtitle="Best headline shown per image when available."
+          metricLabel={metricLabel}
+          eventCountLabel={eventCountLabel}
           rows={report.images}
           extraColumns={[
             {
@@ -185,6 +236,8 @@ export default function PerformancePage() {
         <CreativeTable
           title="Performance by headline (ad_title)"
           subtitle="Best image shown per headline when available."
+          metricLabel={metricLabel}
+          eventCountLabel={eventCountLabel}
           rows={report.headlines}
           extraColumns={[
             {
@@ -202,7 +255,7 @@ export default function PerformancePage() {
           ]}
         />
       ) : (
-        <ComboTable pairs={report.pairs} />
+        <ComboTable pairs={report.pairs} metricLabel={metricLabel} eventCountLabel={eventCountLabel} />
       )}
     </div>
   );
@@ -284,11 +337,15 @@ function TopList({
 function CreativeTable({
   title,
   subtitle,
+  metricLabel,
+  eventCountLabel,
   rows,
   extraColumns,
 }: {
   title: string;
   subtitle: string;
+  metricLabel: string;
+  eventCountLabel: string;
   rows: CreativePerformanceRow[];
   extraColumns?: { header: string; render: (r: CreativePerformanceRow) => ReactNode }[];
 }) {
@@ -302,7 +359,8 @@ function CreativeTable({
             <Th>Creative</Th>
             {extraColumns?.map((c) => <Th key={c.header}>{c.header}</Th>)}
             <Th>Visits</Th>
-            <Th>CR %</Th>
+            <Th>{eventCountLabel}s</Th>
+            <Th>{metricLabel}</Th>
             <Th>Bots %</Th>
             <Th>Revenue</Th>
             <Th>EPC</Th>
@@ -320,7 +378,8 @@ function CreativeTable({
                   </Td>
                 ))}
                 <Td>{r.visits}</Td>
-                <Td className={r.crNum >= 0 ? '' : ''}>{r.cr}%</Td>
+                <Td>{r.conversions}</Td>
+                <Td>{r.cr}%</Td>
                 <Td>
                   <span className={parseFloat(r.botPct) >= 30 ? 'text-red-600 font-medium' : ''}>
                     {r.botPct}%
@@ -341,12 +400,20 @@ function CreativeTable({
   );
 }
 
-function ComboTable({ pairs }: { pairs: CreativePairRow[] }) {
+function ComboTable({
+  pairs,
+  metricLabel,
+  eventCountLabel,
+}: {
+  pairs: CreativePairRow[];
+  metricLabel: string;
+  eventCountLabel: string;
+}) {
   return (
     <div>
       <h2 className="text-sm font-semibold text-zinc-900">Image × Headline combinations</h2>
       <p className="text-xs text-zinc-500 mb-3">
-        Each row is a unique image + headline pair — use this to see which combo actually converts.
+        Each row is a unique image + headline pair — use this to see which combo performs best for the selected event.
       </p>
       <DataTable>
         <table className="w-full text-xs">
@@ -354,7 +421,8 @@ function ComboTable({ pairs }: { pairs: CreativePairRow[] }) {
             <Th>Image (asset)</Th>
             <Th>Headline</Th>
             <Th>Visits</Th>
-            <Th>CR %</Th>
+            <Th>{eventCountLabel}s</Th>
+            <Th>{metricLabel}</Th>
             <Th>Bots %</Th>
             <Th>Revenue</Th>
             <Th>Verdict</Th>
@@ -369,6 +437,7 @@ function ComboTable({ pairs }: { pairs: CreativePairRow[] }) {
                   <span title={r.headlineLabel}>{r.headlineLabel}</span>
                 </Td>
                 <Td>{r.visits}</Td>
+                <Td>{r.conversions}</Td>
                 <Td>{r.cr}%</Td>
                 <Td>
                   <span className={parseFloat(r.botPct) >= 30 ? 'text-red-600 font-medium' : ''}>

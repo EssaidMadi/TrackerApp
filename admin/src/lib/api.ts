@@ -394,12 +394,24 @@ export interface CreativeRecommendation {
 }
 
 export interface CreativeReport {
+  selectedEvent: {
+    slug: string;
+    label: string;
+    slugs: string[];
+    totalEvents: number;
+    visitsWithEvent: number;
+    ratePct: string;
+  };
+  countMode: 'recorded' | 'sent';
+  metricLabel: string;
   benchmarks: {
     avgCr: number;
     avgBotPct: number;
     avgEpc: number;
     totalVisits: number;
     minSample: number;
+    totalEvents: number;
+    metricLabel: string;
   };
   recommendations: CreativeRecommendation[];
   images: CreativePerformanceRow[];

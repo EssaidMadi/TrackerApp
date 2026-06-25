@@ -97,7 +97,11 @@ export class AnalyticsController {
 
   @Get('creatives')
   creativeReport(@Query() query: Record<string, string | undefined>) {
-    return this.creativeAnalytics.getCreativeReport(this.parseVisitFilters(query));
+    const { eventType, countMode, ...rest } = query;
+    return this.creativeAnalytics.getCreativeReport(this.parseVisitFilters(rest), {
+      eventType,
+      countMode: countMode as 'recorded' | 'sent' | undefined,
+    });
   }
 
   private parseVisitFilters(query: Record<string, string | undefined>): VisitAnalyticsFilters {
