@@ -14,6 +14,10 @@ import {
   resolveCreativeEventSlugs,
   type CreativeReportOptions,
 } from './creative-event-resolver';
+import {
+  computeBotWastedSpend,
+  fetchCampaignSpend,
+} from './analytics-spend.util';
 
 type ClickRow = {
   clickId: string;
@@ -62,7 +66,26 @@ export class CreativeAnalyticsService {
       },
     });
 
-    const totalSpend = await this.fetchCampaignSpend(filters, clicks);
+    const totalSpend = await fetchCampaignSpend(
+      this.prisma,
+      filters,
+      filters.campaignId
+        ? [filters.campaignId]
+        : [...new Set(clicks.map((c) => c.campaignId))],
+    );
+
+    const botVisitsForWaste = filters.excludeBots
+      ? await this.prisma.click.count({
+          where: {
+            ...buildClickWhere({ ...filters, excludeBots: false }),
+            isBot: true,
+          },
+        })
+      : clicks.filter((c) => c.isBot).length;
+    const totalVisitsForWaste = filters.excludeBots
+      ? clicks.length + botVisitsForWaste
+      : clicks.length;
+    const wastedBotSpend = computeBotWastedSpend(totalSpend, botVisitsForWaste, totalVisitsForWaste);
 
     const convWhere = {
       eventType: { in: event.slugs },
@@ -212,33 +235,9 @@ export class CreativeAnalyticsService {
         avgCostPerEvent: benchmarks.avgCostPerEvent,
         totalRevenue,
         profit: totalRevenue - totalSpend,
+        wastedBotSpend,
       },
     };
-  }
-
-  private async fetchCampaignSpend(
-    filters: VisitAnalyticsFilters,
-    clicks: ClickRow[],
-  ): Promise<number> {
-    const fromDate = filters.from ? new Date(filters.from) : undefined;
-    const toDate = filters.to ? new Date(filters.to) : new Date();
-    if (!fromDate) return 0;
-
-    const campaignIds = filters.campaignId
-      ? [filters.campaignId]
-      : [...new Set(clicks.map((c) => c.campaignId))];
-
-    if (campaignIds.length === 0) return 0;
-
-    const agg = await this.prisma.campaignSpendSnapshot.aggregate({
-      where: {
-        campaignId: { in: campaignIds },
-        date: { gte: fromDate, lte: toDate },
-      },
-      _sum: { spend: true },
-    });
-
-    return agg._sum.spend || 0;
   }
 
   private applySpend<T extends CreativePerformanceRow>(

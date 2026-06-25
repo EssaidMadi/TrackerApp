@@ -4,6 +4,9 @@ import { AnalyticsService } from './analytics.service';
 import { CampaignReportService } from './campaign-report.service';
 import { FunnelAnalyticsService } from './funnel-analytics.service';
 import { CreativeAnalyticsService } from './creative-analytics.service';
+import { PlacementAnalyticsService } from './placement-analytics.service';
+import { ProfitabilityAnalyticsService } from './profitability-analytics.service';
+import { DigestService } from './digest.service';
 import { ApiKeyGuard } from '../common/guards/api-key.guard';
 import type { VisitAnalyticsFilters, VisitBreakdownDimension } from './visit-filters';
 
@@ -15,6 +18,9 @@ export class AnalyticsController {
     private readonly campaignReport: CampaignReportService,
     private readonly funnelAnalytics: FunnelAnalyticsService,
     private readonly creativeAnalytics: CreativeAnalyticsService,
+    private readonly placementAnalytics: PlacementAnalyticsService,
+    private readonly profitabilityAnalytics: ProfitabilityAnalyticsService,
+    private readonly digest: DigestService,
   ) {}
 
   @Get('overview')
@@ -22,11 +28,12 @@ export class AnalyticsController {
     @Query('campaignId') campaignId?: string,
     @Query('from') from?: string,
     @Query('to') to?: string,
+    @Query('excludeBots') excludeBots?: string,
   ) {
     if (campaignId) {
       return this.analytics.getOverview(campaignId, from, to);
     }
-    const rollup = await this.campaignReport.getGlobalRollup(from, to);
+    const rollup = await this.campaignReport.getGlobalRollup(from, to, excludeBots === 'true');
     const visitStats = await this.analytics.getOverview(undefined, from, to);
     return {
       ...rollup,
@@ -42,8 +49,9 @@ export class AnalyticsController {
     @Query('from') from?: string,
     @Query('to') to?: string,
     @Query('workspace') workspace?: string,
+    @Query('excludeBots') excludeBots?: string,
   ) {
-    return this.campaignReport.getCampaignReport(from, to, workspace);
+    return this.campaignReport.getCampaignReport(from, to, workspace, excludeBots === 'true');
   }
 
   @Get('campaigns/export/csv')
@@ -104,8 +112,36 @@ export class AnalyticsController {
     });
   }
 
+  @Get('placements')
+  placements(@Query() query: Record<string, string | undefined>) {
+    const { dimension, eventType, countMode, ...rest } = query;
+    return this.placementAnalytics.getPlacements(
+      this.parseVisitFilters(rest),
+      (dimension as 'site' | 'publisher') || 'site',
+      eventType,
+      countMode === 'sent' ? 'sent' : 'recorded',
+    );
+  }
+
+  @Get('profitability')
+  profitability(@Query() query: Record<string, string | undefined>) {
+    const { dimension, eventType, countMode, ...rest } = query;
+    return this.profitabilityAnalytics.getProfitability(
+      this.parseVisitFilters(rest),
+      (dimension as 'hour' | 'dow' | 'country' | 'device') || 'hour',
+      eventType,
+      countMode === 'sent' ? 'sent' : 'recorded',
+    );
+  }
+
+  @Get('digest')
+  digestReport(@Query() query: Record<string, string | undefined>) {
+    const { eventType, ...rest } = query;
+    return this.digest.getDigest(this.parseVisitFilters(rest), eventType || 'call_click');
+  }
+
   private parseVisitFilters(query: Record<string, string | undefined>): VisitAnalyticsFilters {
-    const { isBot, isNewVisitor, ...rest } = query;
+    const { isBot, isNewVisitor, excludeBots, ...rest } = query;
     return {
       campaignId: rest.campaignId,
       from: rest.from,
@@ -120,6 +156,7 @@ export class AnalyticsController {
       isBot: isBot === 'true' ? true : isBot === 'false' ? false : undefined,
       isNewVisitor:
         isNewVisitor === 'true' ? true : isNewVisitor === 'false' ? false : undefined,
+      excludeBots: excludeBots === 'true',
     };
   }
 

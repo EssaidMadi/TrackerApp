@@ -17,6 +17,7 @@ import {
   Th,
 } from '@/components/ui';
 import { DateRangePicker, buildPresets, type DateRange } from '@/components/DateRangePicker';
+import { ExcludeBotsToggle } from '@/components/ExcludeBotsToggle';
 import {
   trackerApi,
   type Campaign,
@@ -72,6 +73,7 @@ export default function PerformancePage() {
   const [campaignId, setCampaignId] = useState('');
   const [eventType, setEventType] = useState('call_click');
   const [countMode, setCountMode] = useState<'recorded' | 'sent'>('recorded');
+  const [excludeBots, setExcludeBots] = useState(false);
   const [tab, setTab] = useState<Tab>('dashboard');
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [summary, setSummary] = useState<VisitSummary | null>(null);
@@ -83,6 +85,7 @@ export default function PerformancePage() {
     to: range.to,
     eventType,
     countMode,
+    ...(excludeBots ? { excludeBots: 'true' } : {}),
     ...(campaignId ? { campaignId } : {}),
   };
 
@@ -100,7 +103,7 @@ export default function PerformancePage() {
       })
       .catch(console.error)
       .finally(() => setLoading(false));
-  }, [range, campaignId, eventType, countMode]);
+  }, [range, campaignId, eventType, countMode, excludeBots]);
 
   useEffect(() => {
     load();
@@ -118,8 +121,9 @@ export default function PerformancePage() {
         description="Image vs headline analysis with automated recommendations. Optimize for a specific LP event — uses asset_id (image) and ad_title (headline) from your click URL."
       />
 
-      <div className="mb-4">
+      <div className="mb-4 flex flex-wrap gap-3 items-center">
         <DateRangePicker value={range} onChange={setRange} />
+        <ExcludeBotsToggle value={excludeBots} onChange={setExcludeBots} />
       </div>
 
       <FilterBar>

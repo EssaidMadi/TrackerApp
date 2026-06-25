@@ -17,6 +17,7 @@ import {
   Th,
 } from '@/components/ui';
 import { DateRangePicker, buildPresets, type DateRange } from '@/components/DateRangePicker';
+import { ExcludeBotsToggle } from '@/components/ExcludeBotsToggle';
 import {
   trackerApi,
   type Click,
@@ -82,6 +83,7 @@ export default function ClicksPage() {
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
+  const [excludeBots, setExcludeBots] = useState(false);
 
   const queryParams = useMemo(() => {
     const params: Record<string, string> = {
@@ -98,8 +100,9 @@ export default function ClicksPage() {
     if (filters.isBot) params.isBot = filters.isBot;
     if (filters.isNewVisitor) params.isNewVisitor = filters.isNewVisitor;
     if (filters.converted) params.converted = filters.converted;
+    if (excludeBots) params.excludeBots = 'true';
     return params;
-  }, [range, filters]);
+  }, [range, filters, excludeBots]);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -227,6 +230,7 @@ export default function ClicksPage() {
 
       <div className="mb-4">
         <DateRangePicker value={range} onChange={setRange} />
+        <ExcludeBotsToggle value={excludeBots} onChange={setExcludeBots} />
       </div>
 
       {summary && (

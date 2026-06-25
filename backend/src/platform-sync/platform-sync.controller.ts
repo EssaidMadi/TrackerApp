@@ -83,8 +83,16 @@ export class PlatformSyncController {
     return this.sync.upsertManualSpend(dto);
   }
 
-  @Post('spend/import-csv')
-  importCsv(@Body() dto: ImportCsvDto) {
-    return this.sync.importSpendCsv(dto.csv);
+  @Post('mediago/campaigns/:campaignId/pause')
+  pauseMediago(@Param('campaignId') campaignId: string) {
+    return this.sync.pauseMediagoCampaign(campaignId);
+  }
+
+  @Post('mediago/campaigns/:campaignId/budget')
+  setMediagoBudget(
+    @Param('campaignId') campaignId: string,
+    @Body() body: { budget: number },
+  ) {
+    return this.sync.setMediagoBudget(campaignId, body.budget);
   }
 }

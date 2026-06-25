@@ -8,10 +8,11 @@ import {
   PageHeader,
 } from '@/components/ui';
 import { DateRangePicker, buildPresets, type DateRange } from '@/components/DateRangePicker';
+import { ExcludeBotsToggle } from '@/components/ExcludeBotsToggle';
 import { OverviewChart } from '@/components/OverviewChart';
 import { CampaignReportTable } from '@/components/CampaignReportTable';
 import { OverviewColumnPicker } from '@/components/OverviewColumnPicker';
-import { trackerApi, type CampaignReportRow, type EventColumnDef, type TimeseriesPoint, type VisitStats } from '@/lib/api';
+import { trackerApi, type CampaignReportRow, type DigestReport, type EventColumnDef, type TimeseriesPoint, type VisitStats } from '@/lib/api';
 import {
   buildOverviewColumns,
   loadVisibleColumns,
@@ -31,7 +32,9 @@ const KPI_CARDS = [
 
 export default function OverviewPage() {
   const [range, setRange] = useState<DateRange>(buildPresets()[2]);
+  const [excludeBots, setExcludeBots] = useState(false);
   const [overview, setOverview] = useState<VisitStats | null>(null);
+  const [digest, setDigest] = useState<DigestReport | null>(null);
   const [rows, setRows] = useState<CampaignReportRow[]>([]);
   const [eventColumns, setEventColumns] = useState<EventColumnDef[]>([]);
   const [timeseries, setTimeseries] = useState<TimeseriesPoint[]>([]);
@@ -41,7 +44,11 @@ export default function OverviewPage() {
   );
   const [visibleColumns, setVisibleColumns] = useState<Set<OverviewColumnId>>(() => new Set());
 
-  const params = { from: range.from, to: range.to };
+  const params = {
+    from: range.from,
+    to: range.to,
+    ...(excludeBots ? { excludeBots: 'true' } : {}),
+  };
 
   const load = useCallback(() => {
     setLoading(true);
@@ -49,12 +56,14 @@ export default function OverviewPage() {
       trackerApi.getAnalyticsOverview(params),
       trackerApi.getCampaignReport(params),
       trackerApi.getTimeseries({ ...params, granularity: 'hour' }),
+      trackerApi.getDigest({ ...params, eventType: 'call_click' }),
     ])
-      .then(([ov, report, ts]) => {
+      .then(([ov, report, ts, dig]) => {
         setOverview(ov);
         setRows(report.rows);
         setEventColumns(report.eventColumns);
         setTimeseries(ts);
+        setDigest(dig);
         const allIds = buildOverviewColumns(report.eventColumns).map((c) => c.id);
         setVisibleColumns((prev) => {
           if (prev.size > 0) {
@@ -66,7 +75,7 @@ export default function OverviewPage() {
       })
       .catch(console.error)
       .finally(() => setLoading(false));
-  }, [range.from, range.to]);
+  }, [range.from, range.to, excludeBots]);
 
   useEffect(() => {
     load();
@@ -126,9 +135,25 @@ export default function OverviewPage() {
         }
       />
 
-      <div className="mb-6">
+      <div className="mb-6 flex flex-wrap gap-3 items-center">
         <DateRangePicker value={range} onChange={setRange} />
+        <ExcludeBotsToggle value={excludeBots} onChange={setExcludeBots} />
       </div>
+
+      {digest && digest.items.length > 0 && (
+        <Card className="mb-8 border-indigo-200 bg-indigo-50/50">
+          <h2 className="text-sm font-semibold text-zinc-900 mb-3">Today&apos;s decisions</h2>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+            {digest.items.slice(0, 6).map((item) => (
+              <div key={item.id} className="rounded-lg bg-white border border-zinc-100 p-3">
+                <p className="text-sm font-medium text-zinc-900">{item.title}</p>
+                <p className="text-xs text-zinc-600 mt-1">{item.message}</p>
+                <p className="text-xs text-indigo-700 mt-2">→ {item.action}</p>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
 
       <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 mb-8">
         {KPI_CARDS.map((c) => (

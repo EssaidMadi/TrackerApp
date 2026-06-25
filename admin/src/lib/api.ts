@@ -434,7 +434,149 @@ export interface CreativeReport {
     avgCostPerEvent: number;
     totalRevenue: number;
     profit: number;
+    wastedBotSpend?: number;
   };
+}
+
+export type PlacementVerdict = 'kill' | 'watch' | 'scale';
+
+export interface PlacementRow {
+  key: string;
+  label: string;
+  visits: number;
+  botVisits: number;
+  botPct: string;
+  events: number;
+  cr: string;
+  crNum: number;
+  spend: number;
+  revenue: number;
+  profit: number;
+  roi: number;
+  cpa: number;
+  cpv: number;
+  verdict: PlacementVerdict;
+}
+
+export interface PlacementReport {
+  dimension: 'site' | 'publisher';
+  eventType: string;
+  eventLabel: string;
+  countMode: string;
+  summary: {
+    totalVisits: number;
+    totalSpend: number;
+    totalEvents: number;
+    avgCr: number;
+    killCount: number;
+    scaleCount: number;
+  };
+  rows: PlacementRow[];
+}
+
+export interface ProfitabilityRow {
+  key: string;
+  label: string;
+  visits: number;
+  events: number;
+  spend: number;
+  revenue: number;
+  profit: number;
+  roi: number;
+  cr: string;
+}
+
+export interface ProfitabilityReport {
+  dimension: string;
+  eventType: string;
+  eventLabel: string;
+  countMode: string;
+  summary: { totalVisits: number; totalSpend: number; totalEvents: number };
+  rows: ProfitabilityRow[];
+}
+
+export interface DigestItem {
+  id: string;
+  severity: 'success' | 'warning' | 'danger' | 'info';
+  category: 'scale' | 'pause' | 'block' | 'budget' | 'general';
+  title: string;
+  message: string;
+  action: string;
+  estimatedImpact?: number;
+  entityKey?: string;
+}
+
+export interface DigestReport {
+  generatedAt: string;
+  summary: { blockCandidates: number; scaleCandidates: number; totalDecisions: number };
+  items: DigestItem[];
+}
+
+export interface CampaignTarget {
+  id: string;
+  campaignId: string;
+  dailyBudget?: number | null;
+  cpaTarget?: number | null;
+  roasTarget?: number | null;
+  currency: string;
+}
+
+export interface CampaignPacing {
+  campaignId: string;
+  date: string;
+  target: CampaignTarget | null;
+  spendSoFar: number;
+  projectedSpend: number;
+  dailyBudget: number | null;
+  budgetPct: number | null;
+  projectedBudgetPct: number | null;
+  events: number;
+  revenue: number;
+  cpaActual: number;
+  roasActual: number;
+  cpaTarget: number | null;
+  roasTarget: number | null;
+  onTrack: boolean | null;
+}
+
+export interface OptimizationRule {
+  id: string;
+  name: string;
+  scope: string;
+  metric: string;
+  operator: string;
+  threshold: number;
+  windowHours: number;
+  action: string;
+  severity: string;
+  enabled: boolean;
+  campaignId?: string | null;
+}
+
+export interface AlertEvent {
+  id: string;
+  ruleId?: string | null;
+  severity: string;
+  scope: string;
+  entityKey: string;
+  entityLabel: string;
+  title: string;
+  message: string;
+  suggestedAction: string;
+  metricValue?: number | null;
+  status: 'open' | 'ack' | 'resolved';
+  campaignId?: string | null;
+  createdAt: string;
+}
+
+export interface BlockedPlacement {
+  id: string;
+  campaignId?: string | null;
+  dimension: 'site' | 'publisher';
+  value: string;
+  reason?: string | null;
+  status: string;
+  createdAt: string;
 }
 
 export interface FunnelStepMetrics {
@@ -813,4 +955,66 @@ export const trackerApi = {
     const blob = await res.blob();
     downloadBlob(blob, filename);
   },
+  getPlacements: (params?: Record<string, string>) => {
+    const qs = params ? `?${new URLSearchParams(params)}` : '';
+    return api<PlacementReport>(`/api/analytics/placements${qs}`);
+  },
+  getProfitability: (params?: Record<string, string>) => {
+    const qs = params ? `?${new URLSearchParams(params)}` : '';
+    return api<ProfitabilityReport>(`/api/analytics/profitability${qs}`);
+  },
+  getDigest: (params?: Record<string, string>) => {
+    const qs = params ? `?${new URLSearchParams(params)}` : '';
+    return api<DigestReport>(`/api/analytics/digest${qs}`);
+  },
+  getCampaignTarget: (campaignId: string) =>
+    api<CampaignTarget | null>(`/api/targets/${campaignId}`),
+  upsertCampaignTarget: (campaignId: string, data: Partial<CampaignTarget>) =>
+    api<CampaignTarget>(`/api/targets/${campaignId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+  getCampaignPacing: (campaignId: string) =>
+    api<CampaignPacing>(`/api/targets/${campaignId}/pacing`),
+  getRules: () => api<OptimizationRule[]>('/api/rules'),
+  createRule: (data: Partial<OptimizationRule>) =>
+    api<OptimizationRule>('/api/rules', { method: 'POST', body: JSON.stringify(data) }),
+  updateRule: (id: string, data: Partial<OptimizationRule>) =>
+    api<OptimizationRule>(`/api/rules/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteRule: (id: string) =>
+    api<{ deleted: boolean }>(`/api/rules/${id}`, { method: 'DELETE' }),
+  getAlerts: (params?: Record<string, string>) => {
+    const qs = params ? `?${new URLSearchParams(params)}` : '';
+    return api<AlertEvent[]>(`/api/alerts${qs}`);
+  },
+  getAlertsUnreadCount: () => api<number>('/api/alerts/unread-count'),
+  ackAlert: (id: string) =>
+    api<AlertEvent>(`/api/alerts/${id}/ack`, { method: 'PATCH' }),
+  resolveAlert: (id: string) =>
+    api<AlertEvent>(`/api/alerts/${id}/resolve`, { method: 'PATCH' }),
+  getBlockedPlacements: (params?: Record<string, string>) => {
+    const qs = params ? `?${new URLSearchParams(params)}` : '';
+    return api<BlockedPlacement[]>(`/api/placements/blocked${qs}`);
+  },
+  createBlockedPlacements: (items: Partial<BlockedPlacement>[]) =>
+    api<BlockedPlacement[]>('/api/placements/blocked', {
+      method: 'POST',
+      body: JSON.stringify(items),
+    }),
+  removeBlockedPlacement: (id: string) =>
+    api<BlockedPlacement>(`/api/placements/blocked/${id}`, { method: 'DELETE' }),
+  exportBlocklist: (params?: Record<string, string>) => {
+    const qs = params ? `?${new URLSearchParams(params)}` : '';
+    return api<string>(`/api/placements/blocked/export${qs}`);
+  },
+  pauseMediagoCampaign: (campaignId: string) =>
+    api<{ ok: boolean; message: string }>(
+      `/api/integrations/mediago/campaigns/${campaignId}/pause`,
+      { method: 'POST' },
+    ),
+  setMediagoBudget: (campaignId: string, budget: number) =>
+    api<{ ok: boolean; message: string }>(
+      `/api/integrations/mediago/campaigns/${campaignId}/budget`,
+      { method: 'POST', body: JSON.stringify({ budget }) },
+    ),
 };

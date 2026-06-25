@@ -25,6 +25,8 @@ import {
   type TrackingDomain,
   type TrafficSourceProfile,
   type VisitStats,
+  type CampaignTarget,
+  type CampaignPacing,
 } from '@/lib/api';
 
 type CampaignForm = {
@@ -69,6 +71,8 @@ export default function CampaignDetailPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [target, setTarget] = useState<Partial<CampaignTarget>>({});
+  const [pacing, setPacing] = useState<CampaignPacing | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -77,6 +81,8 @@ export default function CampaignDetailPage() {
       setCampaign(c);
       setForm(toForm(c));
       if (c.postbackConfig) setPostback(c.postbackConfig);
+      trackerApi.getCampaignTarget(id).then((t) => t && setTarget(t)).catch(() => {});
+      trackerApi.getCampaignPacing(id).then(setPacing).catch(() => {});
     } catch (err) {
       console.error('Failed to load campaign:', err);
       setCampaign(null);
@@ -547,6 +553,77 @@ export default function CampaignDetailPage() {
         <Button onClick={savePostback} className="mt-4">
           Save Postback Config
         </Button>
+      </Card>
+
+      <Card className="mt-6">
+        <h2 className="text-lg font-semibold mb-4">Budget & targets</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+          <div>
+            <Label>Daily budget ($)</Label>
+            <Input
+              type="number"
+              value={target.dailyBudget ?? ''}
+              onChange={(e) =>
+                setTarget({ ...target, dailyBudget: e.target.value ? parseFloat(e.target.value) : null })
+              }
+            />
+          </div>
+          <div>
+            <Label>CPA target ($)</Label>
+            <Input
+              type="number"
+              value={target.cpaTarget ?? ''}
+              onChange={(e) =>
+                setTarget({ ...target, cpaTarget: e.target.value ? parseFloat(e.target.value) : null })
+              }
+            />
+          </div>
+          <div>
+            <Label>ROAS target (x)</Label>
+            <Input
+              type="number"
+              step="0.1"
+              value={target.roasTarget ?? ''}
+              onChange={(e) =>
+                setTarget({ ...target, roasTarget: e.target.value ? parseFloat(e.target.value) : null })
+              }
+            />
+          </div>
+        </div>
+        {pacing && (
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+            <StatCard label="Spend today" value={`$${pacing.spendSoFar.toFixed(2)}`} />
+            <StatCard
+              label="Projected EOD"
+              value={`$${pacing.projectedSpend.toFixed(2)}`}
+            />
+            <StatCard
+              label="Budget used"
+              value={pacing.budgetPct != null ? `${pacing.budgetPct.toFixed(0)}%` : '—'}
+            />
+            <StatCard label="CPA actual" value={`$${pacing.cpaActual.toFixed(2)}`} />
+          </div>
+        )}
+        <div className="flex gap-2">
+          <Button
+            onClick={async () => {
+              await trackerApi.upsertCampaignTarget(id, target);
+              const p = await trackerApi.getCampaignPacing(id);
+              setPacing(p);
+            }}
+          >
+            Save targets
+          </Button>
+          <Button
+            variant="secondary"
+            onClick={async () => {
+              const r = await trackerApi.pauseMediagoCampaign(id);
+              alert(r.message);
+            }}
+          >
+            Pause on Mediago
+          </Button>
+        </div>
       </Card>
     </div>
   );

@@ -1,6 +1,7 @@
-import { BadRequestException, Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import { Cron } from '@nestjs/schedule';
 import { HttpService } from '@nestjs/axios';
-import { AdPlatform, PlatformConnectionStatus, Prisma } from '@prisma/client';
+import { AdPlatform, ControlActionStatus, PlatformConnectionStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import type { PlatformSyncAdapter, SpendMetricRow } from './interfaces/platform-sync.adapter';
 import { FacebookSyncAdapter } from './adapters/facebook.adapter';
@@ -19,7 +20,7 @@ import {
 import { sanitizeMediagoCredentialsForResponse } from './mediago/mediago-credentials';
 
 @Injectable()
-export class PlatformSyncService implements OnModuleInit {
+export class PlatformSyncService {
   private readonly logger = new Logger(PlatformSyncService.name);
   private adapters = new Map<AdPlatform, PlatformSyncAdapter>();
   private readonly mediagoAdapter: MediagoSyncAdapter;
@@ -32,11 +33,63 @@ export class PlatformSyncService implements OnModuleInit {
     this.registerAdapters();
   }
 
-  onModuleInit() {
-    const hourMs = 60 * 60 * 1000;
-    setInterval(() => {
-      this.syncAll().catch((err) => this.logger.error('Scheduled sync failed', err));
-    }, hourMs);
+  @Cron('0 * * * *')
+  async scheduledSync() {
+    await this.syncAll().catch((err) => this.logger.error('Scheduled sync failed', err));
+  }
+
+  async pauseMediagoCampaign(campaignId: string) {
+    return this.runMediagoControl(campaignId, 'pause', async (adapter, creds, externalId) =>
+      adapter.pauseCampaign!(creds, externalId),
+    );
+  }
+
+  async setMediagoBudget(campaignId: string, budget: number) {
+    return this.runMediagoControl(campaignId, 'set_budget', async (adapter, creds, externalId) =>
+      adapter.setDailyBudget!(creds, externalId, budget),
+    );
+  }
+
+  private async runMediagoControl(
+    campaignId: string,
+    action: string,
+    fn: (
+      adapter: MediagoSyncAdapter,
+      credentials: Record<string, unknown>,
+      externalCampaignId: string,
+    ) => Promise<{ ok: boolean; message: string }>,
+  ) {
+    const mapping = await this.prisma.campaignPlatformMapping.findFirst({
+      where: { campaignId, platform: AdPlatform.mediago },
+      include: { campaign: true },
+    });
+    if (!mapping) throw new BadRequestException('No Mediago mapping for campaign');
+
+    const connection = await this.prisma.platformConnection.findFirst({
+      where: { platform: AdPlatform.mediago, status: PlatformConnectionStatus.active },
+    });
+    if (!connection) throw new BadRequestException('No active Mediago connection');
+
+    const credentials = connection.credentials as Record<string, unknown>;
+    const log = await this.prisma.controlActionLog.create({
+      data: {
+        campaignId,
+        platform: AdPlatform.mediago,
+        action,
+        payload: { externalCampaignId: mapping.externalCampaignId },
+        status: ControlActionStatus.pending,
+      },
+    });
+
+    const result = await fn(this.mediagoAdapter, credentials, mapping.externalCampaignId);
+    await this.prisma.controlActionLog.update({
+      where: { id: log.id },
+      data: {
+        status: result.ok ? ControlActionStatus.success : ControlActionStatus.failed,
+        responseMessage: result.message,
+      },
+    });
+    return result;
   }
 
   private registerAdapters() {

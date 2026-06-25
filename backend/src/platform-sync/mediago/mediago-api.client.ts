@@ -284,4 +284,60 @@ export class MediagoApiClient {
 
     return rows;
   }
+
+  /** Best-effort write — requires Mediago write token scope. */
+  async pauseCampaign(
+    credentials: Record<string, unknown>,
+    externalCampaignId: string,
+  ): Promise<{ ok: boolean; message: string }> {
+    const token = await this.authenticate(credentials);
+    try {
+      await firstValueFrom(
+        this.http.put(
+          `${BASE_URL}/manage/v1/campaign`,
+          { campaign_id: externalCampaignId, status: 0 },
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            },
+            params: { auth_level: 'w' },
+          },
+        ),
+      );
+      return { ok: true, message: 'Campaign pause request sent' };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Mediago pause failed';
+      this.logger.warn(`Mediago pauseCampaign failed: ${msg}`);
+      return { ok: false, message: msg };
+    }
+  }
+
+  async setDailyBudget(
+    credentials: Record<string, unknown>,
+    externalCampaignId: string,
+    budget: number,
+  ): Promise<{ ok: boolean; message: string }> {
+    const token = await this.authenticate(credentials);
+    try {
+      await firstValueFrom(
+        this.http.put(
+          `${BASE_URL}/manage/v1/campaign`,
+          { campaign_id: externalCampaignId, daily_cap: budget },
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            },
+            params: { auth_level: 'w' },
+          },
+        ),
+      );
+      return { ok: true, message: 'Budget update request sent' };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Mediago budget update failed';
+      this.logger.warn(`Mediago setDailyBudget failed: ${msg}`);
+      return { ok: false, message: msg };
+    }
+  }
 }

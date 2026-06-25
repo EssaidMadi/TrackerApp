@@ -55,4 +55,16 @@ export class MediagoSyncAdapter implements PlatformSyncAdapter {
       currency: 'USD',
     }));
   }
+
+  pauseCampaign(credentials: Record<string, unknown>, externalCampaignId: string) {
+    return this.client.pauseCampaign(credentials, externalCampaignId);
+  }
+
+  setDailyBudget(
+    credentials: Record<string, unknown>,
+    externalCampaignId: string,
+    budget: number,
+  ) {
+    return this.client.setDailyBudget(credentials, externalCampaignId, budget);
+  }
 }

@@ -87,11 +87,17 @@ export class CampaignReportService {
     return { fromDate, toDate };
   }
 
-  private clickWhere(campaignId?: string, from?: string, to?: string): Prisma.ClickWhereInput {
+  private clickWhere(
+    campaignId?: string,
+    from?: string,
+    to?: string,
+    excludeBots?: boolean,
+  ): Prisma.ClickWhereInput {
     const { fromDate, toDate } = this.parseRange(from, to);
     return {
       ...(campaignId ? { campaignId } : {}),
       createdAt: { gte: fromDate, lte: toDate },
+      ...(excludeBots ? { isBot: false } : {}),
     };
   }
 
@@ -111,7 +117,12 @@ export class CampaignReportService {
     };
   }
 
-  async getCampaignReport(from?: string, to?: string, workspace?: string): Promise<{
+  async getCampaignReport(
+    from?: string,
+    to?: string,
+    workspace?: string,
+    excludeBots?: boolean,
+  ): Promise<{
     rows: CampaignReportRow[];
     eventColumns: EventColumnDef[];
   }> {
@@ -125,7 +136,7 @@ export class CampaignReportService {
     const rows: CampaignReportRow[] = [];
 
     for (const campaign of campaigns) {
-      const clickWhere = this.clickWhere(campaign.id, from, to);
+      const clickWhere = this.clickWhere(campaign.id, from, to, excludeBots);
       const convWhere = this.convWhere(campaign.id, from, to);
       const convCountWhere = await this.eventTypes.applyConversionCountFilter(convWhere);
       const spendWhere = this.spendWhere(campaign.id, from, to);
@@ -336,8 +347,8 @@ export class CampaignReportService {
     return [...buckets.values()].sort((a, b) => a.bucket.localeCompare(b.bucket));
   }
 
-  async getGlobalRollup(from?: string, to?: string) {
-    const clickWhere = this.clickWhere(undefined, from, to);
+  async getGlobalRollup(from?: string, to?: string, excludeBots?: boolean) {
+    const clickWhere = this.clickWhere(undefined, from, to, excludeBots);
     const convWhere = this.convWhere(undefined, from, to);
     const convCountWhere = await this.eventTypes.applyConversionCountFilter(convWhere);
     const spendWhere = this.spendWhere(undefined, from, to);

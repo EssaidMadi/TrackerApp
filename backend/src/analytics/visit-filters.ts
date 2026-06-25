@@ -13,6 +13,7 @@ export type VisitAnalyticsFilters = {
   contentName?: string;
   isBot?: boolean;
   isNewVisitor?: boolean;
+  excludeBots?: boolean;
 };
 
 export function buildClickWhere(filters: VisitAnalyticsFilters): Prisma.ClickWhereInput {
@@ -30,7 +31,11 @@ export function buildClickWhere(filters: VisitAnalyticsFilters): Prisma.ClickWhe
   if (filters.contentName) {
     where.contentName = { contains: filters.contentName, mode: 'insensitive' };
   }
-  if (filters.isBot !== undefined) where.isBot = filters.isBot;
+  if (filters.excludeBots) {
+    where.isBot = false;
+  } else if (filters.isBot !== undefined) {
+    where.isBot = filters.isBot;
+  }
   if (filters.isNewVisitor !== undefined) where.isNewVisitor = filters.isNewVisitor;
 
   if (filters.from || filters.to) {

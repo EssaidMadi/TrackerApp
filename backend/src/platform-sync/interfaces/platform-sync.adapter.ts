@@ -10,7 +10,19 @@ export type SpendMetricRow = {
   currency?: string;
 };
 
-export type PlatformSyncAdapter = {
+export type PlatformControlAdapter = {
+  pauseCampaign?(
+    credentials: Record<string, unknown>,
+    externalCampaignId: string,
+  ): Promise<{ ok: boolean; message: string }>;
+  setDailyBudget?(
+    credentials: Record<string, unknown>,
+    externalCampaignId: string,
+    budget: number,
+  ): Promise<{ ok: boolean; message: string }>;
+};
+
+export type PlatformSyncAdapter = PlatformControlAdapter & {
   platform: AdPlatform;
   fetchMetrics(
     credentials: Record<string, unknown>,

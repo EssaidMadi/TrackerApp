@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { SignOutButton } from './SignOutButton';
+import { NotificationBell } from './NotificationBell';
 
 const links = [
   { href: '/overview', label: 'Overview', icon: 'M3 3v18h18M7 14l4-4 4 4 5-6' },
@@ -16,6 +17,9 @@ const links = [
   { href: '/traffic', label: 'Live Traffic', icon: 'M3 3v18h18M7 14l4-4 4 4 5-6' },
   { href: '/clicks', label: 'Visits', icon: 'M15 15l6 6M10 17a7 7 0 1 1 0-14 7 7 0 0 1 0 14z' },
   { href: '/performance', label: 'Performance', icon: 'M4 19h16M6 16l3-4 4 3 5-8 4 6' },
+  { href: '/placements', label: 'Placements', icon: 'M4 4h7v7H4z M13 4h7v7h-7z M4 13h7v7H4z M13 13h7v7h-7z' },
+  { href: '/insights', label: 'Insights', icon: 'M4 19V5M4 19h16M8 15l3-4 4 3 5-7' },
+  { href: '/rules', label: 'Rules', icon: 'M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1' },
   { href: '/conversions', label: 'Conversions', icon: 'M9 12l2 2 4-4M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z' },
 ];
 
@@ -47,6 +51,7 @@ export function Sidebar({ userEmail }: { userEmail?: string | null }) {
       </div>
 
       <nav className="flex-1 px-3 py-4 space-y-0.5">
+        <NotificationBell />
         {links.map((link) => {
           const active =
             link.href === '/'

@@ -4,6 +4,9 @@ import { AnalyticsService } from './analytics.service';
 import { CampaignReportService } from './campaign-report.service';
 import { FunnelAnalyticsService } from './funnel-analytics.service';
 import { CreativeAnalyticsService } from './creative-analytics.service';
+import { PlacementAnalyticsService } from './placement-analytics.service';
+import { ProfitabilityAnalyticsService } from './profitability-analytics.service';
+import { DigestService } from './digest.service';
 import { ConversionEventTypesModule } from '../conversion-event-types/conversion-event-types.module';
 
 @Module({
@@ -14,12 +17,18 @@ import { ConversionEventTypesModule } from '../conversion-event-types/conversion
     CampaignReportService,
     FunnelAnalyticsService,
     CreativeAnalyticsService,
+    PlacementAnalyticsService,
+    ProfitabilityAnalyticsService,
+    DigestService,
   ],
   exports: [
     AnalyticsService,
     CampaignReportService,
     FunnelAnalyticsService,
     CreativeAnalyticsService,
+    PlacementAnalyticsService,
+    ProfitabilityAnalyticsService,
+    DigestService,
   ],
 })
 export class AnalyticsModule {}

@@ -144,6 +144,10 @@ model Campaign {
   platformMappings CampaignPlatformMapping[]
   spendSnapshots   CampaignSpendSnapshot[]
   landers          Lander[]
+  target           CampaignTarget?
+  blockedPlacements BlockedPlacement[]
+  optimizationRules OptimizationRule[]
+  controlActionLogs ControlActionLog[]
 
   @@map("campaigns")
 }
@@ -416,4 +420,156 @@ model CampaignSpendSnapshot {
   @@unique([campaignId, platform, date, hour])
   @@index([campaignId, date])
   @@map("campaign_spend_snapshots")
+}
+
+enum PlacementDimension {
+  site
+  publisher
+}
+
+enum BlockedPlacementSource {
+  manual
+  rule
+}
+
+enum BlockedPlacementStatus {
+  active
+  removed
+}
+
+model BlockedPlacement {
+  id            String                 @id @default(uuid())
+  campaignId    String?                @map("campaign_id")
+  campaign      Campaign?              @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  workspaceName String?                @map("workspace_name")
+  dimension     PlacementDimension
+  value         String
+  reason        String?
+  source        BlockedPlacementSource @default(manual)
+  status        BlockedPlacementStatus @default(active)
+  createdAt     DateTime               @default(now()) @map("created_at")
+  updatedAt     DateTime               @updatedAt @map("updated_at")
+
+  @@index([campaignId, dimension, status])
+  @@index([dimension, value, status])
+  @@map("blocked_placements")
+}
+
+model CampaignTarget {
+  id           String   @id @default(uuid())
+  campaignId   String   @unique @map("campaign_id")
+  campaign     Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  dailyBudget  Float?   @map("daily_budget")
+  cpaTarget    Float?   @map("cpa_target")
+  roasTarget   Float?   @map("roas_target")
+  currency     String   @default("USD")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@map("campaign_targets")
+}
+
+enum RuleScope {
+  campaign
+  site
+  publisher
+  creative
+}
+
+enum RuleMetric {
+  roi
+  cpa
+  botPct
+  spendNoEvents
+  budgetPace
+}
+
+enum RuleOperator {
+  lt
+  lte
+  gt
+  gte
+}
+
+enum RuleAction {
+  alert
+  suggest_block
+  suggest_pause
+}
+
+enum AlertSeverity {
+  info
+  warning
+  danger
+  success
+}
+
+enum AlertStatus {
+  open
+  ack
+  resolved
+}
+
+model OptimizationRule {
+  id           String       @id @default(uuid())
+  name         String
+  scope        RuleScope
+  metric       RuleMetric
+  operator     RuleOperator
+  threshold    Float
+  windowHours  Int          @default(24) @map("window_hours")
+  action       RuleAction   @default(alert)
+  severity     AlertSeverity @default(warning)
+  enabled      Boolean      @default(true)
+  campaignId   String?      @map("campaign_id")
+  campaign     Campaign?    @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  createdAt    DateTime     @default(now()) @map("created_at")
+  updatedAt    DateTime     @updatedAt @map("updated_at")
+  alerts       AlertEvent[]
+
+  @@map("optimization_rules")
+}
+
+model AlertEvent {
+  id               String          @id @default(uuid())
+  ruleId           String?         @map("rule_id")
+  rule             OptimizationRule? @relation(fields: [ruleId], references: [id], onDelete: SetNull)
+  severity         AlertSeverity
+  scope            RuleScope
+  entityKey        String          @map("entity_key")
+  entityLabel      String          @map("entity_label")
+  title            String
+  message          String
+  suggestedAction  String          @map("suggested_action")
+  metricValue      Float?          @map("metric_value")
+  status           AlertStatus     @default(open)
+  campaignId       String?         @map("campaign_id")
+  createdAt        DateTime        @default(now()) @map("created_at")
+  acknowledgedAt   DateTime?       @map("acknowledged_at")
+  resolvedAt       DateTime?       @map("resolved_at")
+
+  @@index([status, createdAt])
+  @@index([entityKey, scope, status])
+  @@map("alert_events")
+}
+
+enum ControlActionStatus {
+  pending
+  success
+  failed
+}
+
+model ControlActionLog {
+  id              String              @id @default(uuid())
+  campaignId      String              @map("campaign_id")
+  campaign        Campaign            @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  platform        AdPlatform
+  action          String
+  payload         Json?
+  status          ControlActionStatus @default(pending)
+  responseMessage String?             @map("response_message")
+  createdAt       DateTime            @default(now()) @map("created_at")
+
+  @@index([campaignId, createdAt])
+  @@map("control_action_logs")
 }
