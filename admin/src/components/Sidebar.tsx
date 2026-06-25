@@ -2,8 +2,11 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useEffect } from 'react';
 import { SignOutButton } from './SignOutButton';
 import { NotificationBell } from './NotificationBell';
+import { ThemeToggle } from './ThemeToggle';
+import { useSidebar } from './SidebarContext';
 
 const links = [
   { href: '/overview', label: 'Overview', icon: 'M3 3v18h18M7 14l4-4 4 4 5-6' },
@@ -25,7 +28,7 @@ const links = [
 
 function NavIcon({ d }: { d: string }) {
   return (
-    <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75">
+    <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden>
       <path d={d} strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
@@ -33,55 +36,83 @@ function NavIcon({ d }: { d: string }) {
 
 export function Sidebar({ userEmail }: { userEmail?: string | null }) {
   const pathname = usePathname();
+  const { open, close } = useSidebar();
+
+  useEffect(() => {
+    close();
+  }, [pathname, close]);
 
   if (pathname === '/login') return null;
 
   return (
-    <aside className="fixed inset-y-0 left-0 z-40 w-60 bg-zinc-950 text-zinc-300 flex flex-col">
-      <div className="px-5 py-6 border-b border-zinc-800">
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center">
-            <span className="text-white text-xs font-bold">TK</span>
-          </div>
-          <div>
-            <p className="text-sm font-semibold text-white leading-none">Tracker</p>
-            <p className="text-[10px] text-zinc-500 mt-1 uppercase tracking-widest">Admin</p>
+    <>
+      {open && (
+        <button
+          type="button"
+          className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm lg:hidden"
+          aria-label="Close navigation menu"
+          onClick={close}
+        />
+      )}
+      <aside
+        className={`fixed inset-y-0 left-0 z-50 w-64 bg-zinc-950 text-zinc-300 flex flex-col transition-transform duration-200 ease-out lg:translate-x-0 border-r border-zinc-800/80 ${
+          open ? 'translate-x-0' : '-translate-x-full'
+        }`}
+        aria-label="Main navigation"
+      >
+        <div className="px-5 py-6 border-b border-zinc-800/80">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl gradient-accent flex items-center justify-center shadow-lg shadow-indigo-500/25">
+              <span className="text-white text-xs font-bold">TK</span>
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-white leading-none">Tracker</p>
+              <p className="text-[10px] text-zinc-500 mt-1 uppercase tracking-widest">Admin</p>
+            </div>
           </div>
         </div>
-      </div>
 
-      <nav className="flex-1 px-3 py-4 space-y-0.5">
-        <NotificationBell />
-        {links.map((link) => {
-          const active =
-            link.href === '/'
-              ? pathname === '/'
-              : pathname === link.href || pathname.startsWith(`${link.href}/`);
-          return (
-            <Link
-              key={link.href}
-              href={link.href}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                active
-                  ? 'bg-zinc-800 text-white'
-                  : 'text-zinc-400 hover:bg-zinc-900 hover:text-zinc-200'
-              }`}
-            >
-              <NavIcon d={link.icon} />
-              {link.label}
-            </Link>
-          );
-        })}
-      </nav>
+        <nav className="flex-1 px-3 py-5 space-y-1 overflow-y-auto">
+          <NotificationBell />
+          {links.map((link) => {
+            const active =
+              link.href === '/'
+                ? pathname === '/'
+                : pathname === link.href || pathname.startsWith(`${link.href}/`);
+            return (
+              <Link
+                key={link.href}
+                href={link.href}
+                aria-current={active ? 'page' : undefined}
+                className={`relative flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50 ${
+                  active
+                    ? 'bg-indigo-500/10 text-white shadow-sm'
+                    : 'text-zinc-400 hover:bg-zinc-900/80 hover:text-zinc-200'
+                }`}
+              >
+                {active && (
+                  <span
+                    className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 rounded-r-full gradient-accent"
+                    aria-hidden
+                  />
+                )}
+                <NavIcon d={link.icon} />
+                {link.label}
+              </Link>
+            );
+          })}
+        </nav>
 
-      <div className="px-4 py-4 border-t border-zinc-800">
-        {userEmail && (
-          <p className="text-xs text-zinc-500 truncate mb-2 px-1" title={userEmail}>
-            {userEmail}
-          </p>
-        )}
-        <SignOutButton />
-      </div>
-    </aside>
+        <div className="px-4 py-5 border-t border-zinc-800/80 space-y-1">
+          {userEmail && (
+            <p className="text-xs text-zinc-500 truncate mb-2 px-1" title={userEmail}>
+              {userEmail}
+            </p>
+          )}
+          <ThemeToggle />
+          <SignOutButton />
+        </div>
+      </aside>
+    </>
   );
 }

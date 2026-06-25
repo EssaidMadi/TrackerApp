@@ -12,6 +12,7 @@ import {
   PageHeader,
   Select,
 } from '@/components/ui';
+import { useToast } from '@/components/Toast';
 import { trackerApi, type Campaign, type OptimizationRule } from '@/lib/api';
 
 const SCOPES = [
@@ -105,6 +106,7 @@ function operatorSymbol(id: string) {
 }
 
 export default function RulesPage() {
+  const toast = useToast();
   const [rules, setRules] = useState<OptimizationRule[]>([]);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [loading, setLoading] = useState(true);
@@ -165,7 +167,7 @@ export default function RulesPage() {
       load();
     } catch (err) {
       console.error(err);
-      alert('Failed to save rule');
+      toast.error('Failed to save rule');
     } finally {
       setSaving(false);
     }

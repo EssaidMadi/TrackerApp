@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useToast } from '@/components/Toast';
 import {
   Alert,
   Badge,
@@ -20,6 +21,7 @@ import {
 import { trackerApi, type DnsRecord, type TrackingDomain } from '@/lib/api';
 
 export default function DomainsPage() {
+  const toast = useToast();
   const [domains, setDomains] = useState<TrackingDomain[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -47,7 +49,7 @@ export default function DomainsPage() {
       setForm({ label: '', rootDomain: '', subdomain: 'track' });
       load();
     } catch (err) {
-      alert(String(err));
+      toast.error(String(err));
     }
   };
 
@@ -58,10 +60,10 @@ export default function DomainsPage() {
       const msg =
         (res.check as { message?: string }).message ||
         (res.domain.status === 'verified' ? 'DNS verified!' : 'DNS not verified yet');
-      alert(msg);
+      toast.info(msg);
       load();
     } catch (err) {
-      alert(String(err));
+      toast.error(String(err));
     } finally {
       setVerifyingId(null);
     }
@@ -73,7 +75,7 @@ export default function DomainsPage() {
       await trackerApi.deleteDomain(d.id);
       load();
     } catch (err) {
-      alert(String(err));
+      toast.error(String(err));
     }
   };
 

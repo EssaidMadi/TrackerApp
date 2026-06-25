@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useToast } from '@/components/Toast';
 import {
   Alert,
   Badge,
@@ -23,6 +24,7 @@ import {
 import { trackerApi, type Campaign, type TrackingDomain, type TrafficSourceProfile } from '@/lib/api';
 
 export default function CampaignsPage() {
+  const toast = useToast();
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [domains, setDomains] = useState<TrackingDomain[]>([]);
   const [profiles, setProfiles] = useState<TrafficSourceProfile[]>([]);
@@ -88,7 +90,7 @@ export default function CampaignsPage() {
       });
       load();
     } catch (err) {
-      alert(String(err));
+      toast.error(String(err));
     }
   };
 
@@ -98,7 +100,7 @@ export default function CampaignsPage() {
       await trackerApi.updateCampaign(c.id, { active: !c.active });
       load();
     } catch (err) {
-      alert(String(err));
+      toast.error(String(err));
     } finally {
       setTogglingId(null);
     }

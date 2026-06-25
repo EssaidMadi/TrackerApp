@@ -1,6 +1,7 @@
 'use client';
 
 import { Fragment, useEffect, useState } from 'react';
+import { useToast } from '@/components/Toast';
 import {
   Badge,
   Button,
@@ -16,6 +17,7 @@ import {
 import { trackerApi, type Conversion } from '@/lib/api';
 
 export default function ConversionsPage() {
+  const toast = useToast();
   const [conversions, setConversions] = useState<Conversion[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -41,7 +43,7 @@ export default function ConversionsPage() {
       await trackerApi.retryConversion(id);
       load();
     } catch (err) {
-      alert(String(err));
+      toast.error(String(err));
     }
   };
 
@@ -67,7 +69,7 @@ export default function ConversionsPage() {
                 a.click();
                 URL.revokeObjectURL(url);
               } catch (err) {
-                alert(String(err));
+                toast.error(String(err));
               }
             }}
           >

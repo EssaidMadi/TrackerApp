@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { useToast } from '@/components/Toast';
 import {
   Badge,
   Button,
@@ -60,6 +61,7 @@ function toForm(c: Campaign): CampaignForm {
 }
 
 export default function CampaignDetailPage() {
+  const toast = useToast();
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const [campaign, setCampaign] = useState<Campaign | null>(null);
@@ -113,9 +115,9 @@ export default function CampaignDetailPage() {
       const updated = await trackerApi.updateCampaign(id, form);
       setCampaign(updated);
       setForm(toForm(updated));
-      alert('Campaign saved');
+      toast.success('Campaign saved');
     } catch (err) {
-      alert(String(err));
+      toast.error(String(err));
     } finally {
       setSaving(false);
     }
@@ -133,7 +135,7 @@ export default function CampaignDetailPage() {
       await trackerApi.deleteCampaign(id);
       router.push('/');
     } catch (err) {
-      alert(String(err));
+      toast.error(String(err));
       setDeleting(false);
     }
   };
@@ -142,9 +144,9 @@ export default function CampaignDetailPage() {
     try {
       const updated = await trackerApi.updatePostbackConfig(id, postback);
       setCampaign(updated);
-      alert('Postback config saved');
+      toast.success('Postback config saved');
     } catch (err) {
-      alert(String(err));
+      toast.error(String(err));
     }
   };
 
@@ -179,7 +181,7 @@ export default function CampaignDetailPage() {
                 setCampaign(updated);
                 setForm(toForm(updated));
               } catch (err) {
-                alert(String(err));
+                toast.error(String(err));
               }
             }}
           >
@@ -618,7 +620,7 @@ export default function CampaignDetailPage() {
             variant="secondary"
             onClick={async () => {
               const r = await trackerApi.pauseMediagoCampaign(id);
-              alert(r.message);
+              toast.info(r.message);
             }}
           >
             Pause on Mediago

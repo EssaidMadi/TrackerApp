@@ -72,7 +72,7 @@ export function DateRangePicker({
           {p.label}
         </Button>
       ))}
-      <label className="flex items-center gap-2 text-xs text-zinc-600 ml-1">
+      <label className="flex items-center gap-2 text-xs text-zinc-600 dark:text-zinc-400 ml-1">
         <span className="whitespace-nowrap">Pick day</span>
         <input
           type="date"
@@ -80,11 +80,11 @@ export function DateRangePicker({
           onChange={(e) => {
             if (e.target.value) onChange(buildDayRange(e.target.value));
           }}
-          className="rounded-md border border-zinc-200 bg-white px-2 py-1.5 text-xs text-zinc-900 shadow-sm focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-400"
+          className="rounded-md border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-2 py-1.5 text-xs text-zinc-900 dark:text-zinc-100 shadow-sm focus:border-indigo-400 dark:focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-400 dark:focus:ring-indigo-500"
         />
       </label>
       {!isPresetRange(value) && (
-        <span className="text-xs text-zinc-500">{value.label}</span>
+        <span className="text-xs text-zinc-500 dark:text-zinc-400">{value.label}</span>
       )}
     </div>
   );

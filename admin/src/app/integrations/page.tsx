@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useToast } from '@/components/Toast';
 import {
   Button,
   Card,
@@ -38,6 +39,7 @@ const MEDIAGO_TIMEZONES = [
 ];
 
 export default function IntegrationsPage() {
+  const toast = useToast();
   const [connections, setConnections] = useState<PlatformConnection[]>([]);
   const [mappings, setMappings] = useState<CampaignPlatformMapping[]>([]);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
@@ -110,11 +112,11 @@ export default function IntegrationsPage() {
     try {
       if (connForm.platform === 'mediago') {
         if (!mediagoForm.label.trim()) {
-          alert('Label is required');
+          toast.error('Label is required');
           return;
         }
         if (!mediagoForm.apiTokenBase64.trim() && !mediagoForm.apiTokenRaw.trim()) {
-          alert('Paste your Mediago Base64 or raw API token');
+          toast.error('Paste your Mediago Base64 or raw API token');
           return;
         }
         await trackerApi.createPlatformConnection({
@@ -147,7 +149,7 @@ export default function IntegrationsPage() {
         try {
           credentials = JSON.parse(connForm.credentialsJson);
         } catch {
-          alert('Invalid credentials JSON');
+          toast.error('Invalid credentials JSON');
           return;
         }
         await trackerApi.createPlatformConnection({
@@ -160,16 +162,16 @@ export default function IntegrationsPage() {
       }
       load();
     } catch (err) {
-      alert(String(err));
+      toast.error(String(err));
     }
   };
 
   const testMediagoBeforeSave = async () => {
     if (!mediagoForm.apiTokenBase64.trim() && !mediagoForm.apiTokenRaw.trim()) {
-      alert('Paste a token first');
+      toast.error('Paste a token first');
       return;
     }
-    alert(
+    toast.info(
       'Save the connection first, then click Test on the connection row to load Mediago accounts.',
     );
   };
@@ -179,7 +181,7 @@ export default function IntegrationsPage() {
       const list = await trackerApi.getMediagoCampaigns(connectionId);
       setMediagoCampaigns(list);
     } catch (err) {
-      alert(String(err));
+      toast.error(String(err));
     }
   };
 
@@ -188,7 +190,7 @@ export default function IntegrationsPage() {
       await trackerApi.createCampaignMapping(mapForm);
       load();
     } catch (err) {
-      alert(String(err));
+      toast.error(String(err));
     }
   };
 
@@ -196,10 +198,10 @@ export default function IntegrationsPage() {
     setSyncing(true);
     try {
       const res = await trackerApi.syncAllPlatforms();
-      alert(`Synced ${res.synced} spend rows`);
+      toast.success(`Synced ${res.synced} spend rows`);
       load();
     } catch (err) {
-      alert(String(err));
+      toast.error(String(err));
     } finally {
       setSyncing(false);
     }
@@ -215,18 +217,18 @@ export default function IntegrationsPage() {
         clicks: parseInt(manualForm.clicks, 10),
         spend: parseFloat(manualForm.spend),
       });
-      alert('Spend saved');
+      toast.success('Spend saved');
     } catch (err) {
-      alert(String(err));
+      toast.error(String(err));
     }
   };
 
   const importCsv = async () => {
     try {
       const res = await trackerApi.importSpendCsv(csvText);
-      alert(`Imported ${res.imported} rows`);
+      toast.success(`Imported ${res.imported} rows`);
     } catch (err) {
-      alert(String(err));
+      toast.error(String(err));
     }
   };
 
@@ -405,13 +407,13 @@ export default function IntegrationsPage() {
                     const r = await trackerApi.testPlatformConnection(c.id);
                     if (r.accounts?.length) {
                       setMediagoAccounts(r.accounts);
-                      alert(
+                      toast.info(
                         `${r.message || (r.ok ? 'OK' : 'Failed')}\n\n${r.accounts
                           .map((a) => `${a.accountName} (${a.accountId})`)
                           .join('\n')}`,
                       );
                     } else {
-                      alert(r.message || (r.ok ? 'OK' : 'Failed'));
+                      toast.info(r.message || (r.ok ? 'OK' : 'Failed'));
                     }
                   }}
                 >
@@ -432,12 +434,12 @@ export default function IntegrationsPage() {
                       onClick={async () => {
                         const r = await trackerApi.autoMapMediagoCampaigns(c.id);
                         if (r.total === 0) {
-                          alert(
+                          toast.info(
                             'Mediago returned 0 campaigns. Try Sync (uses spend report) or map manually — e.g. nexoquote → 5208604.',
                           );
                         } else {
-                          alert(
-                            `Found ${r.total} Mediago campaign(s).\nNew mappings: ${r.mapped}\nAlready mapped: ${r.alreadyMapped ?? 0}\nNo name match: ${r.unmatched ?? 0}`,
+                          toast.success(
+                            `Found ${r.total} Mediago campaign(s). New mappings: ${r.mapped}. Already mapped: ${r.alreadyMapped ?? 0}. No name match: ${r.unmatched ?? 0}`,
                           );
                         }
                         load();
@@ -452,7 +454,7 @@ export default function IntegrationsPage() {
                   variant="secondary"
                   onClick={async () => {
                     const n = await trackerApi.syncPlatformConnection(c.id);
-                    alert(`Synced ${n} spend rows`);
+                    toast.success(`Synced ${n} spend rows`);
                     load();
                   }}
                 >

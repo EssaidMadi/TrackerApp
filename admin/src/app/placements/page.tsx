@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { useToast } from '@/components/Toast';
 import {
   Badge,
   Button,
@@ -28,6 +29,7 @@ import {
 const VERDICT_TONE = { kill: 'danger', watch: 'warning', scale: 'success' } as const;
 
 export default function PlacementsPage() {
+  const toast = useToast();
   const [range, setRange] = useState<DateRange>(buildPresets()[2]);
   const [campaignId, setCampaignId] = useState('');
   const [dimension, setDimension] = useState<'site' | 'publisher'>('site');
@@ -85,7 +87,7 @@ export default function PlacementsPage() {
       })),
     );
     setSelected(new Set());
-    alert(`Added ${rows.length} placement(s) to blocklist`);
+    toast.success(`Added ${rows.length} placement(s) to blocklist`);
   };
 
   const copyBlocklist = async () => {
@@ -95,7 +97,7 @@ export default function PlacementsPage() {
         : report?.rows.filter((r) => r.verdict === 'kill').map((r) => r.label);
     if (!values?.length) return;
     await navigator.clipboard.writeText(values.join('\n'));
-    alert(`Copied ${values.length} ID(s) — paste into Mediago blocklist`);
+    toast.success(`Copied ${values.length} ID(s) — paste into Mediago blocklist`);
   };
 
   if (loading && !report) return <Loading label="Loading placements…" />;

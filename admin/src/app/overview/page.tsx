@@ -1,11 +1,13 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import {
   Button,
   Card,
   Loading,
   PageHeader,
+  StatCard,
+  type StatCardTone,
 } from '@/components/ui';
 import { DateRangePicker, buildPresets, type DateRange } from '@/components/DateRangePicker';
 import { ExcludeBotsToggle } from '@/components/ExcludeBotsToggle';
@@ -20,15 +22,28 @@ import {
   type OverviewColumnId,
 } from '@/lib/overview-columns';
 
-const KPI_CARDS = [
-  { key: 'impressions', label: 'Impressions', color: 'bg-sky-100 text-sky-800' },
-  { key: 'visits', label: 'Visits', color: 'bg-green-100 text-green-800' },
-  { key: 'clicks', label: 'Clicks', color: 'bg-yellow-100 text-yellow-800' },
-  { key: 'conversions', label: 'Conversions', color: 'bg-pink-100 text-pink-800' },
-  { key: 'revenue', label: 'Revenue', color: 'bg-purple-100 text-purple-800' },
-  { key: 'cost', label: 'Cost', color: 'bg-blue-100 text-blue-800' },
-  { key: 'profit', label: 'Profit', color: 'bg-amber-100 text-amber-900' },
-] as const;
+function KpiIcon({ d }: { d: string }) {
+  return (
+    <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden>
+      <path d={d} strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+const KPI_CARDS: {
+  key: string;
+  label: string;
+  tone: StatCardTone;
+  icon: ReactNode;
+}[] = [
+  { key: 'impressions', label: 'Impressions', tone: 'sky', icon: <KpiIcon d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z" /> },
+  { key: 'visits', label: 'Visits', tone: 'green', icon: <KpiIcon d="M15 15l6 6M10 17a7 7 0 1 1 0-14 7 7 0 0 1 0 14z" /> },
+  { key: 'clicks', label: 'Clicks', tone: 'yellow', icon: <KpiIcon d="M9 12l2 2 4-4M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z" /> },
+  { key: 'conversions', label: 'Conversions', tone: 'pink', icon: <KpiIcon d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" /> },
+  { key: 'revenue', label: 'Revenue', tone: 'purple', icon: <KpiIcon d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" /> },
+  { key: 'cost', label: 'Cost', tone: 'blue', icon: <KpiIcon d="M4 19h16M6 16l3-4 4 3 5-8 4 6" /> },
+  { key: 'profit', label: 'Profit', tone: 'amber', icon: <KpiIcon d="M12 3v18M3 12h18" /> },
+];
 
 export default function OverviewPage() {
   const [range, setRange] = useState<DateRange>(buildPresets()[2]);
@@ -141,36 +156,42 @@ export default function OverviewPage() {
       </div>
 
       {digest && digest.items.length > 0 && (
-        <Card className="mb-8 border-indigo-200 bg-indigo-50/50">
-          <h2 className="text-sm font-semibold text-zinc-900 mb-3">Today&apos;s decisions</h2>
+        <Card elevated className="mb-8 border-indigo-200/60 dark:border-indigo-800/60 bg-indigo-50/30 dark:bg-indigo-950/20">
+          <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50 mb-4">Today&apos;s decisions</h2>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
             {digest.items.slice(0, 6).map((item) => (
-              <div key={item.id} className="rounded-lg bg-white border border-zinc-100 p-3">
-                <p className="text-sm font-medium text-zinc-900">{item.title}</p>
-                <p className="text-xs text-zinc-600 mt-1">{item.message}</p>
-                <p className="text-xs text-indigo-700 mt-2">→ {item.action}</p>
+              <div
+                key={item.id}
+                className="rounded-xl bg-white/80 dark:bg-zinc-900/60 border border-zinc-200/60 dark:border-zinc-800 p-4 shadow-sm"
+              >
+                <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">{item.title}</p>
+                <p className="text-xs text-zinc-600 dark:text-zinc-400 mt-1 leading-relaxed">{item.message}</p>
+                <p className="text-xs text-indigo-600 dark:text-indigo-400 mt-2 font-medium">→ {item.action}</p>
               </div>
             ))}
           </div>
         </Card>
       )}
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 mb-8">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-4 mb-8">
         {KPI_CARDS.map((c) => (
-          <div key={c.key} className={`rounded-lg px-4 py-3 ${c.color}`}>
-            <p className="text-[10px] uppercase tracking-wide opacity-70">{c.label}</p>
-            <p className="text-xl font-semibold mt-1">{kpiValue(c.key)}</p>
-          </div>
+          <StatCard
+            key={c.key}
+            label={c.label}
+            value={kpiValue(c.key)}
+            tone={c.tone}
+            icon={c.icon}
+          />
         ))}
       </div>
 
-      <Card className="mb-8">
-        <h2 className="text-sm font-semibold text-zinc-900 mb-4">Performance over time</h2>
+      <Card elevated className="mb-8">
+        <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50 mb-4">Performance over time</h2>
         <OverviewChart data={timeseries} active={activeMetrics} onToggle={toggleMetric} />
       </Card>
 
-      <div className="flex items-center justify-between mb-3">
-        <h2 className="text-sm font-semibold text-zinc-900">Campaign performance</h2>
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">Campaign performance</h2>
         <OverviewColumnPicker
           eventColumns={eventColumns}
           visible={visibleColumns}

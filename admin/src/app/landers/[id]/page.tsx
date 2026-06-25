@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
+import { useToast } from '@/components/Toast';
 import {
   Badge,
   Button,
@@ -16,6 +17,7 @@ import {
 import { trackerApi, type Campaign, type Lander, type LanderSuggestion } from '@/lib/api';
 
 export default function LanderDetailPage() {
+  const toast = useToast();
   const params = useParams();
   const id = params.id as string;
 
@@ -88,9 +90,9 @@ export default function LanderDetailPage() {
         trackerAttrs: { noViewContent: form.noViewContent },
       });
       setLander(updated);
-      alert('Saved — campaign destination URL and lander metadata updated.');
+      toast.success('Saved — campaign destination URL and lander metadata updated.');
     } catch (err) {
-      alert(String(err));
+      toast.error(String(err));
     } finally {
       setSaving(false);
     }
@@ -107,9 +109,9 @@ export default function LanderDetailPage() {
           ? await trackerApi.uploadLanderFile(id, file)
           : await trackerApi.uploadLanderFiles(id, Array.from(files));
       setLander(updated);
-      alert('Upload complete — tracker script injected in processed copy.');
+      toast.success('Upload complete — tracker script injected in processed copy.');
     } catch (err) {
-      alert(String(err));
+      toast.error(String(err));
     } finally {
       setUploading(false);
       e.target.value = '';
@@ -284,9 +286,9 @@ export default function LanderDetailPage() {
                 try {
                   const updated = await trackerApi.reprocessLander(id);
                   setLander(updated);
-                  alert('Re-processed with current campaign settings.');
+                  toast.success('Re-processed with current campaign settings.');
                 } catch (err) {
-                  alert(String(err));
+                  toast.error(String(err));
                 }
               }}
             >

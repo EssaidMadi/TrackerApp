@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useToast } from '@/components/Toast';
 import { Button, Card, Input, Label, Select, Textarea } from '@/components/ui';
 import { trackerApi, type ParamMapping, type TrafficSourceProfile } from '@/lib/api';
 import {
@@ -58,6 +59,7 @@ export function TrafficSourceEditor({
   isNew?: boolean;
 }) {
   const router = useRouter();
+  const toast = useToast();
   const [tab, setTab] = useState<Tab>('general');
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
@@ -119,7 +121,7 @@ export function TrafficSourceEditor({
         router.refresh();
       }
     } catch (err) {
-      alert(String(err));
+      toast.error(String(err));
     } finally {
       setSaving(false);
     }

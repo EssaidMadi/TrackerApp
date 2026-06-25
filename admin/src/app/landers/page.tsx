@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
+import { useToast } from '@/components/Toast';
 import {
   Badge,
   Button,
@@ -20,6 +21,7 @@ import {
 import { trackerApi, type Campaign, type Lander } from '@/lib/api';
 
 export default function LandersPage() {
+  const toast = useToast();
   const [landers, setLanders] = useState<Lander[]>([]);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [loading, setLoading] = useState(true);
@@ -80,7 +82,7 @@ export default function LandersPage() {
       setForm({ name: '', campaignId: '', slug: '', rootDomain: '', publicUrl: '' });
       window.location.href = `/landers/${lander.id}`;
     } catch (err) {
-      alert(String(err));
+      toast.error(String(err));
     } finally {
       setCreating(false);
     }
@@ -92,7 +94,7 @@ export default function LandersPage() {
       await trackerApi.deleteLander(lander.id);
       load();
     } catch (err) {
-      alert(String(err));
+      toast.error(String(err));
     }
   };
 
