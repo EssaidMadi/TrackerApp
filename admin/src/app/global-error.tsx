@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect } from 'react';
+import './globals.css';
+import { Button } from '@/components/ui';
 
 function isChunkError(error: Error) {
   return (
@@ -9,6 +11,16 @@ function isChunkError(error: Error) {
     error.message.includes('Loading chunk')
   );
 }
+
+const themeScript = `
+(function () {
+  try {
+    var t = localStorage.getItem('theme');
+    var dark = t === 'dark' || (!t && window.matchMedia('(prefers-color-scheme: dark)').matches);
+    if (dark) document.documentElement.classList.add('dark');
+  } catch (e) {}
+})();
+`;
 
 export default function GlobalError({
   error,
@@ -27,43 +39,24 @@ export default function GlobalError({
   }, [error]);
 
   return (
-    <html lang="en">
-      <body style={{ fontFamily: 'system-ui, sans-serif', padding: '4rem 1.5rem', textAlign: 'center' }}>
-        <h2 style={{ fontSize: '1.125rem', fontWeight: 600 }}>This page couldn&apos;t load</h2>
-        <p style={{ color: '#71717a', fontSize: '0.875rem', marginTop: '0.5rem' }}>
-          {isChunkError(error)
-            ? 'The app was updated. Reload to fetch the latest version.'
-            : 'Something went wrong.'}
-        </p>
-        <div style={{ marginTop: '1.5rem', display: 'flex', gap: '0.75rem', justifyContent: 'center' }}>
-          <button
-            type="button"
-            onClick={() => window.location.reload()}
-            style={{
-              padding: '0.5rem 1rem',
-              background: '#4f46e5',
-              color: 'white',
-              border: 'none',
-              borderRadius: '0.5rem',
-              cursor: 'pointer',
-            }}
-          >
-            Reload
-          </button>
-          <button
-            type="button"
-            onClick={() => reset()}
-            style={{
-              padding: '0.5rem 1rem',
-              background: 'white',
-              color: '#3f3f46',
-              border: '1px solid #e4e4e7',
-              borderRadius: '0.5rem',
-              cursor: 'pointer',
-            }}
-          >
-            Try again
-          </button>
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+      </head>
+      <body className="antialiased bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-50">
+        <div className="max-w-md mx-auto mt-24 p-8 text-center">
+          <h2 className="text-lg font-semibold mb-2">This page couldn&apos;t load</h2>
+          <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-6">
+            {isChunkError(error)
+              ? 'The app was updated. Reload to fetch the latest version.'
+              : 'Something went wrong.'}
+          </p>
+          <div className="flex gap-3 justify-center">
+            <Button onClick={() => window.location.reload()}>Reload</Button>
+            <Button variant="secondary" onClick={() => reset()}>
+              Try again
+            </Button>
+          </div>
         </div>
       </body>
     </html>

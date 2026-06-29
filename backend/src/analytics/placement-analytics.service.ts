@@ -29,6 +29,8 @@ export type PlacementRow = {
   verdict: PlacementVerdict;
 };
 
+const PLACEMENT_TOP_N = 500;
+
 @Injectable()
 export class PlacementAnalyticsService {
   constructor(private readonly prisma: PrismaService) {}
@@ -140,7 +142,8 @@ export class PlacementAnalyticsService {
           verdict: this.scoreVerdict(spend, g.events, crNum, avgCr, parseFloat(botPct), roi),
         };
       })
-      .sort((a, b) => b.spend - a.spend || a.crNum - b.crNum);
+      .sort((a, b) => b.spend - a.spend || a.crNum - b.crNum)
+      .slice(0, PLACEMENT_TOP_N);
 
     return {
       dimension,

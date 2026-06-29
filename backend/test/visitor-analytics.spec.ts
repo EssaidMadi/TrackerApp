@@ -2,20 +2,14 @@ import { getVisitStats } from '../src/analytics/visit-stats';
 
 describe('getVisitStats', () => {
   const prisma = {
-    click: {
-      count: jest.fn(),
-      groupBy: jest.fn(),
-    },
+    $queryRaw: jest.fn(),
   };
 
   beforeEach(() => {
     jest.clearAllMocks();
-    prisma.click.count.mockImplementation(({ where }: { where: { isNewVisitor?: boolean; visitorId?: unknown } }) => {
-      if (where?.isNewVisitor === true) return Promise.resolve(3);
-      if (where?.visitorId === null) return Promise.resolve(1);
-      return Promise.resolve(5);
-    });
-    prisma.click.groupBy.mockResolvedValue([{ visitorId: 'v1' }, { visitorId: 'v2' }]);
+    prisma.$queryRaw.mockResolvedValue([
+      { visits: 5, new_visitors: 3, unique_visits: 3 },
+    ]);
   });
 
   it('returns visit and unique visitor counts', async () => {
@@ -25,5 +19,6 @@ describe('getVisitStats', () => {
     expect(stats.newVisitors).toBe(3);
     expect(stats.returningVisitors).toBe(2);
     expect(stats.uniqueVisits).toBe(3);
+    expect(prisma.$queryRaw).toHaveBeenCalled();
   });
 });

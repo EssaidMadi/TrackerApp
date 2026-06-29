@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { Badge, DataTable, TableHead, Td, Th } from '@/components/ui';
+import { Badge, DataTable, TableHead, Td, Th, tableRowClass } from '@/components/ui';
 import type { CampaignReportRow, EventColumnDef } from '@/lib/api';
 import {
   eventCountColumnId,
@@ -74,7 +74,7 @@ export function CampaignReportTable({
 
   const th = (key: SortKey, label: string) => (
     <Th>
-      <button type="button" className="hover:text-zinc-900 whitespace-nowrap" onClick={() => toggleSort(key)}>
+      <button type="button" className="hover:text-zinc-900 dark:hover:text-zinc-100 whitespace-nowrap" onClick={() => toggleSort(key)}>
         {label}
         {sortKey === key ? (sortDir === 'asc' ? ' ↑' : ' ↓') : ''}
       </button>
@@ -160,7 +160,7 @@ export function CampaignReportTable({
           </TableHead>
           <tbody>
             {sorted.map((row) => (
-              <tr key={row.campaignId} className="border-b border-zinc-50 hover:bg-zinc-50/50">
+              <tr key={row.campaignId} className={tableRowClass}>
                 {visible('campaignName') && (
                   <Td className="font-medium max-w-[200px] truncate">{row.campaignName}</Td>
                 )}
@@ -183,12 +183,12 @@ export function CampaignReportTable({
                 {visible('cost') && <Td className="font-mono">{fmtMoney(row.cost)}</Td>}
                 {visible('revenue') && <Td className="font-mono">{fmtMoney(row.revenue)}</Td>}
                 {visible('profit') && (
-                  <Td className={`font-mono ${safeNum(row.profit) < 0 ? 'text-red-600' : 'text-green-700'}`}>
+                  <Td className={`font-mono ${safeNum(row.profit) < 0 ? 'text-red-600 dark:text-red-400' : 'text-green-700 dark:text-green-400'}`}>
                     {fmtMoney(row.profit)}
                   </Td>
                 )}
                 {visible('roi') && (
-                  <Td className={`font-mono ${safeNum(row.roi) < 0 ? 'text-red-600' : 'text-green-700'}`}>
+                  <Td className={`font-mono ${safeNum(row.roi) < 0 ? 'text-red-600 dark:text-red-400' : 'text-green-700 dark:text-green-400'}`}>
                     {fmtPct(row.roi)}
                   </Td>
                 )}

@@ -3,8 +3,8 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/components/Toast';
-import { Button, Card, Input, Label, Select, Textarea } from '@/components/ui';
-import { trackerApi, type ParamMapping, type TrafficSourceProfile } from '@/lib/api';
+import { Button, Card, Checkbox, Input, Label, Select, Textarea, inlineCodeClass, linkClass, mutedTextClass, sectionHeadingClass } from '@/components/ui';
+import { trackerApi, formatApiError, type ParamMapping, type TrafficSourceProfile } from '@/lib/api';
 import {
   DEFAULT_MEDIAGO_POSTBACK_URL,
   POSTBACK_TOKEN_DEFINITIONS,
@@ -121,7 +121,7 @@ export function TrafficSourceEditor({
         router.refresh();
       }
     } catch (err) {
-      toast.error(String(err));
+      toast.error(formatApiError(err));
     } finally {
       setSaving(false);
     }
@@ -136,7 +136,7 @@ export function TrafficSourceEditor({
 
   return (
     <div>
-      <div className="flex gap-1 mb-6 border-b border-zinc-200">
+      <div className="flex gap-1 mb-6 border-b border-zinc-200 dark:border-zinc-800">
         {tabs.map((t) => (
           <button
             key={t.id}
@@ -144,8 +144,8 @@ export function TrafficSourceEditor({
             onClick={() => setTab(t.id)}
             className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px ${
               tab === t.id
-                ? 'border-indigo-600 text-indigo-600'
-                : 'border-transparent text-zinc-500 hover:text-zinc-800'
+                ? 'border-indigo-600 dark:border-indigo-400 text-indigo-600 dark:text-indigo-400'
+                : `border-transparent ${mutedTextClass} hover:text-zinc-800 dark:hover:text-zinc-200`
             }`}
           >
             {t.label}
@@ -196,24 +196,21 @@ export function TrafficSourceEditor({
               rows={3}
             />
           </div>
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={form.active}
-              onChange={(e) => setForm({ ...form, active: e.target.checked })}
-            />
-            Active (visible in campaign picker)
-          </label>
+          <Checkbox
+            label="Active (visible in campaign picker)"
+            checked={form.active}
+            onChange={(checked) => setForm({ ...form, active: checked })}
+          />
         </Card>
       )}
 
       {tab === 'url' && (
         <Card className="space-y-4 max-w-3xl">
-          <p className="text-sm text-zinc-500">
-            Use placeholders: <code className="text-xs bg-zinc-100 px-1">{'{clickUrl}'}</code>,{' '}
-            <code className="text-xs bg-zinc-100 px-1">{'{destinationUrl}'}</code>,{' '}
-            <code className="text-xs bg-zinc-100 px-1">{'{campaignName}'}</code>. Network macros
-            like <code className="text-xs bg-zinc-100 px-1">${'{AD_ID}'}</code> stay as-is for ad
+          <p className={`text-sm ${mutedTextClass}`}>
+            Use placeholders: <code className={inlineCodeClass}>{'{clickUrl}'}</code>,{' '}
+            <code className={inlineCodeClass}>{'{destinationUrl}'}</code>,{' '}
+            <code className={inlineCodeClass}>{'{campaignName}'}</code>. Network macros
+            like <code className={inlineCodeClass}>${'{AD_ID}'}</code> stay as-is for ad
             platforms.
           </p>
           {form.trackingModeDefault === 'redirect' ? (
@@ -437,8 +434,8 @@ export function TrafficSourceEditor({
           </Card>
 
           <Card>
-            <h3 className="text-sm font-semibold text-zinc-900 mb-2">Tokens dictionary</h3>
-            <p className="text-xs text-zinc-500 mb-3">
+            <h3 className={`${sectionHeadingClass} mb-2`}>Tokens dictionary</h3>
+            <p className={`text-xs ${mutedTextClass} mb-3`}>
               Click a token to copy. Use in the postback URL above.
             </p>
             <div className="max-h-[420px] overflow-y-auto space-y-1">
@@ -447,11 +444,11 @@ export function TrafficSourceEditor({
                   key={t.token}
                   type="button"
                   onClick={() => navigator.clipboard.writeText(t.token)}
-                  className="w-full text-left px-2 py-1.5 rounded hover:bg-zinc-50 group"
+                  className="w-full text-left px-2 py-1.5 rounded hover:bg-zinc-50 dark:hover:bg-zinc-800/60 group"
                   title={t.description}
                 >
-                  <code className="text-[11px] text-indigo-700">{t.token}</code>
-                  <span className="block text-[10px] text-zinc-400 group-hover:text-zinc-500">
+                  <code className={`text-[11px] ${linkClass}`}>{t.token}</code>
+                  <span className={`block text-[10px] ${mutedTextClass} group-hover:text-zinc-500 dark:group-hover:text-zinc-400`}>
                     {t.description}
                   </span>
                 </button>

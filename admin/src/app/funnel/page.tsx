@@ -4,9 +4,14 @@ import { useCallback, useEffect, useState } from 'react';
 import {
   Button,
   Card,
+  Label,
   Loading,
   PageHeader,
   Select,
+  StatCard,
+  bodyTextClass,
+  mutedTextClass,
+  sectionHeadingClass,
 } from '@/components/ui';
 import { DateRangePicker, buildPresets, type DateRange } from '@/components/DateRangePicker';
 import { FunnelChart } from '@/components/FunnelChart';
@@ -79,7 +84,7 @@ export default function FunnelPage() {
       <div className="flex flex-wrap gap-4 mb-6 items-end">
         <DateRangePicker value={range} onChange={setRange} />
         <div className="min-w-[220px]">
-          <label className="text-xs text-zinc-500 block mb-1">Campaign</label>
+          <Label>Campaign</Label>
           <Select
             value={campaignId}
             onChange={(e) => setCampaignId(e.target.value)}
@@ -98,13 +103,13 @@ export default function FunnelPage() {
       {funnel && (
         <>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
-            <SummaryCard label="LP arrivals" value={funnel.visits} />
-            <SummaryCard label="Unique visitors" value={funnel.uniqueVisits} />
-            <SummaryCard
+            <StatCard label="LP arrivals" value={funnel.visits} />
+            <StatCard label="Unique visitors" value={funnel.uniqueVisits} />
+            <StatCard
               label="Reached lead"
               value={funnel.steps.find((s) => s.stepId === 'lead')?.uniqueVisitors ?? 0}
             />
-            <SummaryCard
+            <StatCard
               label="Purchases"
               value={funnel.steps.find((s) => s.stepId === 'purchase')?.uniqueVisitors ?? 0}
             />
@@ -112,8 +117,8 @@ export default function FunnelPage() {
 
           <div className="grid lg:grid-cols-2 gap-6 mb-8">
             <Card>
-              <h2 className="text-sm font-semibold text-zinc-900 mb-1">Conversion funnel</h2>
-              <p className="text-xs text-zinc-500 mb-4">
+              <h2 className={`${sectionHeadingClass} mb-1`}>Conversion funnel</h2>
+              <p className={`text-xs ${mutedTextClass} mb-4`}>
                 Click a step to filter outbound postbacks below. Drop-off is vs. the previous step.
               </p>
               <FunnelChart
@@ -123,13 +128,13 @@ export default function FunnelPage() {
                 onSelectStep={setSelectedStepId}
               />
               {funnel.discoveredEvents.length > 0 && (
-                <div className="mt-4 pt-4 border-t border-zinc-100">
-                  <p className="text-xs font-medium text-zinc-700 mb-2">Other event types</p>
+                <div className="mt-4 pt-4 border-t border-zinc-100 dark:border-zinc-800">
+                  <p className={`text-xs font-medium ${bodyTextClass} mb-2`}>Other event types</p>
                   <div className="flex flex-wrap gap-2">
                     {funnel.discoveredEvents.map((e) => (
                       <span
                         key={e.slug}
-                        className="text-xs px-2 py-1 rounded bg-zinc-100 text-zinc-600 font-mono"
+                        className="text-xs px-2 py-1 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 font-mono"
                       >
                         {e.slug}: {e.uniqueVisitors} visitors
                       </span>
@@ -140,13 +145,13 @@ export default function FunnelPage() {
             </Card>
 
             <Card>
-              <h2 className="text-sm font-semibold text-zinc-900 mb-1">Step summary</h2>
+              <h2 className={`${sectionHeadingClass} mb-1`}>Step summary</h2>
               {selectedStep ? (
                 <div className="space-y-3 text-sm">
-                  <p className="text-zinc-600">
+                  <p className={bodyTextClass}>
                     <strong>{selectedStep.label}</strong>
                     {selectedStep.mediagoCode != null && (
-                      <span className="ml-2 text-xs text-sky-700">
+                      <span className="ml-2 text-xs text-sky-700 dark:text-sky-300">
                         Mediago type {selectedStep.mediagoCode}
                       </span>
                     )}
@@ -162,23 +167,23 @@ export default function FunnelPage() {
                     <Stat label="Revenue" value={`€${selectedStep.revenue.toFixed(2)}`} />
                   </dl>
                   {selectedStep.eventSlugs.length > 0 && (
-                    <p className="text-[10px] text-zinc-400 font-mono">
+                    <p className={`text-[10px] ${mutedTextClass} font-mono`}>
                       Events: {selectedStep.eventSlugs.join(', ')}
                     </p>
                   )}
                 </div>
               ) : (
-                <p className="text-sm text-zinc-500">
+                <p className={`text-sm ${mutedTextClass}`}>
                   Select a funnel step to see drop-off and postback stats for that stage.
                 </p>
               )}
             </Card>
           </div>
 
-          <h2 className="text-sm font-semibold text-zinc-900 mb-3">
+          <h2 className={`${sectionHeadingClass} mb-3`}>
             Outbound postbacks
             {selectedStep && (
-              <span className="font-normal text-zinc-500 ml-2">— {selectedStep.label}</span>
+              <span className={`font-normal ${mutedTextClass} ml-2`}>— {selectedStep.label}</span>
             )}
           </h2>
           <FunnelPostbackFeed rows={postbacks} />
@@ -188,20 +193,11 @@ export default function FunnelPage() {
   );
 }
 
-function SummaryCard({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="rounded-lg border border-zinc-200 bg-white px-4 py-3">
-      <p className="text-[10px] uppercase tracking-wide text-zinc-400">{label}</p>
-      <p className="text-xl font-semibold text-zinc-900 mt-1">{value.toLocaleString()}</p>
-    </div>
-  );
-}
-
 function Stat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="bg-zinc-50 rounded px-2 py-1.5">
-      <dt className="text-zinc-400">{label}</dt>
-      <dd className="font-medium text-zinc-900">{value}</dd>
+    <div className="bg-zinc-50 dark:bg-zinc-800/60 rounded px-2 py-1.5">
+      <dt className={mutedTextClass}>{label}</dt>
+      <dd className="font-medium text-zinc-900 dark:text-zinc-50">{value}</dd>
     </div>
   );
 }

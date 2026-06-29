@@ -2,24 +2,28 @@
 
 import { useEffect, useState } from 'react';
 import {
+  Alert,
   Badge,
   Button,
   Card,
+  Checkbox,
   EmptyState,
   Input,
   Label,
   Loading,
   PageHeader,
   Select,
+  bodyTextClass,
+  mutedTextClass,
+  sectionHeadingClass,
 } from '@/components/ui';
 import { useToast } from '@/components/Toast';
-import { trackerApi, type Campaign, type OptimizationRule } from '@/lib/api';
+import { trackerApi, formatApiError, type Campaign, type OptimizationRule } from '@/lib/api';
 
 const SCOPES = [
   { id: 'site', label: 'Site' },
   { id: 'publisher', label: 'Publisher' },
   { id: 'campaign', label: 'Campaign' },
-  { id: 'creative', label: 'Creative' },
 ];
 
 const METRICS = [
@@ -110,6 +114,7 @@ export default function RulesPage() {
   const [rules, setRules] = useState<OptimizationRule[]>([]);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<RuleForm>(EMPTY_FORM);
   const [showForm, setShowForm] = useState(false);
@@ -117,12 +122,22 @@ export default function RulesPage() {
 
   const load = () => {
     setLoading(true);
-    trackerApi.getRules().then(setRules).catch(console.error).finally(() => setLoading(false));
+    trackerApi
+      .getRules()
+      .then((data) => {
+        setRules(data);
+        setError(null);
+      })
+      .catch((err) => {
+        console.error(err);
+        setError(formatApiError(err));
+      })
+      .finally(() => setLoading(false));
   };
 
   useEffect(() => {
     load();
-    trackerApi.getCampaigns().then(setCampaigns).catch(() => {});
+    trackerApi.getCampaigns().then(setCampaigns).catch(console.error);
   }, []);
 
   const startCreate = () => {
@@ -166,22 +181,29 @@ export default function RulesPage() {
       cancel();
       load();
     } catch (err) {
-      console.error(err);
-      toast.error('Failed to save rule');
+      toast.error(formatApiError(err));
     } finally {
       setSaving(false);
     }
   };
 
   const toggle = async (rule: OptimizationRule) => {
-    await trackerApi.updateRule(rule.id, { enabled: !rule.enabled });
-    load();
+    try {
+      await trackerApi.updateRule(rule.id, { enabled: !rule.enabled });
+      load();
+    } catch (err) {
+      toast.error(formatApiError(err));
+    }
   };
 
   const remove = async (rule: OptimizationRule) => {
     if (!confirm(`Delete rule "${rule.name}"?`)) return;
-    await trackerApi.deleteRule(rule.id);
-    load();
+    try {
+      await trackerApi.deleteRule(rule.id);
+      load();
+    } catch (err) {
+      toast.error(formatApiError(err));
+    }
   };
 
   const availableMetrics = METRICS.filter((m) => m.scopes.includes(form.scope));
@@ -203,9 +225,15 @@ export default function RulesPage() {
         }
       />
 
+      {error && (
+        <div className="mb-6">
+          <Alert tone="error">{error}</Alert>
+        </div>
+      )}
+
       {showForm && (
         <Card className="mb-6">
-          <h2 className="text-sm font-semibold text-zinc-900 mb-4">
+          <h2 className={`${sectionHeadingClass} mb-4`}>
             {editingId ? 'Edit rule' : 'New rule'}
           </h2>
 
@@ -237,6 +265,9 @@ export default function RulesPage() {
                   <option key={s.id} value={s.id}>{s.label}</option>
                 ))}
               </Select>
+              <p className={`text-xs ${mutedTextClass} mt-1.5`}>
+                Creative-level rules coming soon.
+              </p>
             </div>
 
             <div>
@@ -278,6 +309,9 @@ export default function RulesPage() {
                 value={form.windowHours}
                 onChange={(e) => setForm({ ...form, windowHours: e.target.value })}
               />
+              <p className={`text-xs ${mutedTextClass} mt-1.5`}>
+                Rolling lookback window used by the rule engine when evaluating metrics (runs hourly).
+              </p>
             </div>
 
             <div>
@@ -319,17 +353,15 @@ export default function RulesPage() {
           </div>
 
           {activeMetric && (
-            <p className="text-xs text-zinc-500 mt-3">{activeMetric.help}</p>
+            <p className={`text-xs ${mutedTextClass} mt-3`}>{activeMetric.help}</p>
           )}
 
-          <label className="flex items-center gap-2 mt-4 text-sm text-zinc-700">
-            <input
-              type="checkbox"
-              checked={form.enabled}
-              onChange={(e) => setForm({ ...form, enabled: e.target.checked })}
-            />
-            Enabled
-          </label>
+          <Checkbox
+            className="mt-4"
+            label="Enabled"
+            checked={form.enabled}
+            onChange={(checked) => setForm({ ...form, enabled: checked })}
+          />
 
           <div className="flex gap-2 mt-5">
             <Button variant="primary" onClick={save} disabled={saving}>
@@ -354,11 +386,11 @@ export default function RulesPage() {
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <div className="flex items-center gap-2 mb-1">
-                    <h3 className="font-medium text-sm">{r.name}</h3>
+                    <h3 className={`font-medium text-sm ${sectionHeadingClass}`}>{r.name}</h3>
                     <Badge tone={r.enabled ? 'success' : 'neutral'}>{r.enabled ? 'On' : 'Off'}</Badge>
                     <Badge tone={SEV_TONE[r.severity] || 'info'}>{r.severity}</Badge>
                   </div>
-                  <p className="text-xs text-zinc-600">
+                  <p className={`text-xs ${bodyTextClass}`}>
                     {r.scope} · {metricLabel(r.metric)} {operatorSymbol(r.operator)} {r.threshold} · window {r.windowHours}h · action: {r.action}
                     {r.campaignId ? ' · single campaign' : ' · all campaigns'}
                   </p>

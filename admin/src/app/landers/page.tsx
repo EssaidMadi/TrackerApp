@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { useToast } from '@/components/Toast';
 import {
+  Alert,
   Badge,
   Button,
   Card,
@@ -17,14 +18,17 @@ import {
   TableHead,
   Td,
   Th,
+  linkClass,
+  tableRowClass,
 } from '@/components/ui';
-import { trackerApi, type Campaign, type Lander } from '@/lib/api';
+import { trackerApi, formatApiError, type Campaign, type Lander } from '@/lib/api';
 
 export default function LandersPage() {
   const toast = useToast();
   const [landers, setLanders] = useState<Lander[]>([]);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [creating, setCreating] = useState(false);
   const [form, setForm] = useState({
@@ -40,8 +44,12 @@ export default function LandersPage() {
       .then(([l, c]) => {
         setLanders(l);
         setCampaigns(c);
+        setError(null);
       })
-      .catch(console.error)
+      .catch((err) => {
+        console.error(err);
+        setError(formatApiError(err));
+      })
       .finally(() => setLoading(false));
   };
 
@@ -82,7 +90,7 @@ export default function LandersPage() {
       setForm({ name: '', campaignId: '', slug: '', rootDomain: '', publicUrl: '' });
       window.location.href = `/landers/${lander.id}`;
     } catch (err) {
-      toast.error(String(err));
+      toast.error(formatApiError(err));
     } finally {
       setCreating(false);
     }
@@ -94,7 +102,7 @@ export default function LandersPage() {
       await trackerApi.deleteLander(lander.id);
       load();
     } catch (err) {
-      toast.error(String(err));
+      toast.error(formatApiError(err));
     }
   };
 
@@ -112,6 +120,12 @@ export default function LandersPage() {
           </Button>
         }
       />
+
+      {error && (
+        <div className="mb-6">
+          <Alert tone="error">{error}</Alert>
+        </div>
+      )}
 
       {showForm && (
         <Card className="mb-8">
@@ -201,7 +215,7 @@ export default function LandersPage() {
           </TableHead>
           <tbody>
             {landers.map((l) => (
-              <tr key={l.id} className="border-b border-zinc-50 hover:bg-zinc-50/50">
+              <tr key={l.id} className={tableRowClass}>
                 <Td className="font-medium">{l.name}</Td>
                 <Td className="font-mono text-xs">{l.slug}</Td>
                 <Td>{l.campaign.name}</Td>
@@ -211,12 +225,12 @@ export default function LandersPage() {
                   <Badge tone={l.status === 'ready' ? 'success' : 'neutral'}>{l.status}</Badge>
                 </Td>
                 <Td className="text-right space-x-2">
-                  <Link href={`/landers/${l.id}`} className="text-indigo-600 text-xs font-medium">
+                  <Link href={`/landers/${l.id}`} className={`${linkClass} text-xs font-medium`}>
                     Edit
                   </Link>
                   <button
                     type="button"
-                    className="text-red-500 text-xs"
+                    className="text-red-500 dark:text-red-400 text-xs"
                     onClick={() => handleDelete(l)}
                   >
                     Delete

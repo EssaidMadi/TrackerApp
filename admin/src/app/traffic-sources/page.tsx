@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import {
+  Alert,
   Badge,
   Button,
   DataTable,
@@ -12,6 +13,8 @@ import {
   TableHead,
   Td,
   Th,
+  linkClass,
+  tableRowClass,
 } from '@/components/ui';
 import { trackerApi, type TrafficSourceProfile } from '@/lib/api';
 
@@ -44,11 +47,14 @@ export default function TrafficSourcesPage() {
       />
 
       {error && (
-        <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg text-sm text-red-800">
-          Failed to load traffic sources: {error}
-          <p className="mt-2 text-red-600">
-            On the server run: <code className="bg-red-100 px-1">cd backend && npm run build && npm run seed:traffic-sources && pm2 restart tracker-api</code>
-          </p>
+        <div className="mb-4">
+          <Alert tone="error">
+            Failed to load traffic sources: {error}
+            <p className="mt-2 opacity-90">
+              On the server run:{' '}
+              <code className="bg-red-100 dark:bg-red-900/40 px-1 rounded">cd backend && npm run build && npm run seed:traffic-sources && pm2 restart tracker-api</code>
+            </p>
+          </Alert>
         </div>
       )}
 
@@ -67,9 +73,9 @@ export default function TrafficSourcesPage() {
             </TableHead>
             <tbody>
               {profiles.map((p) => (
-                <tr key={p.id} className="border-b border-zinc-50 hover:bg-zinc-50/50">
+                <tr key={p.id} className={tableRowClass}>
                   <Td>
-                    <div className="font-medium text-zinc-900">{p.name}</div>
+                    <div className="font-medium text-zinc-900 dark:text-zinc-50">{p.name}</div>
                     <div className="text-xs text-zinc-400 font-mono">{p.slug}</div>
                   </Td>
                   <Td className="capitalize">{p.trackingModeDefault}</Td>
@@ -88,7 +94,7 @@ export default function TrafficSourcesPage() {
                   <Td>
                     <Link
                       href={`/traffic-sources/${p.id}`}
-                      className="text-indigo-600 hover:underline text-xs"
+                      className={`${linkClass} text-xs`}
                     >
                       Edit
                     </Link>

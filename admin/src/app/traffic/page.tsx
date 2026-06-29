@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState } from 'react';
 import {
+  Alert,
   Badge,
   Card,
   DataTable,
@@ -12,8 +13,12 @@ import {
   TableHead,
   Td,
   Th,
+  bodyTextClass,
+  mutedTextClass,
+  sectionHeadingClass,
+  tableRowClass,
 } from '@/components/ui';
-import { trackerApi, type Click, type BreakdownRow } from '@/lib/api';
+import { trackerApi, formatApiError, type Click, type BreakdownRow } from '@/lib/api';
 
 export default function TrafficPage() {
   const [live, setLive] = useState<Click[]>([]);
@@ -29,31 +34,57 @@ export default function TrafficPage() {
   const [deviceBreakdown, setDeviceBreakdown] = useState<BreakdownRow[]>([]);
   const [platformBreakdown, setPlatformBreakdown] = useState<BreakdownRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback(() => {
+  useEffect(() => {
+    let cancelled = false;
+
+    setLoading(true);
     Promise.all([
-      trackerApi.getLiveTraffic({ limit: '30' }),
       trackerApi.getAnalyticsOverview(),
       trackerApi.getBreakdown('publisher'),
       trackerApi.getBreakdown('device'),
       trackerApi.getBreakdown('platform'),
+      trackerApi.getLiveTraffic({ limit: '30' }),
     ])
-      .then(([liveData, ov, pub, dev, plat]) => {
-        setLive(liveData);
+      .then(([ov, pub, dev, plat, liveData]) => {
+        if (cancelled) return;
         setOverview(ov);
         setPublisherBreakdown(pub);
         setDeviceBreakdown(dev);
         setPlatformBreakdown(plat);
+        setLive(liveData);
+        setError(null);
       })
-      .catch(console.error)
-      .finally(() => setLoading(false));
+      .catch((err) => {
+        console.error(err);
+        if (!cancelled) setError(formatApiError(err));
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => { cancelled = true; };
   }, []);
 
   useEffect(() => {
-    load();
-    const interval = setInterval(load, 15000);
-    return () => clearInterval(interval);
-  }, [load]);
+    let cancelled = false;
+
+    const pollLive = () => {
+      trackerApi
+        .getLiveTraffic({ limit: '30' })
+        .then((liveData) => {
+          if (!cancelled) setLive(liveData);
+        })
+        .catch((err) => console.error(err));
+    };
+
+    const interval = setInterval(pollLive, 15000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, []);
 
   if (loading) return <Loading label="Loading traffic..." />;
 
@@ -64,6 +95,12 @@ export default function TrafficPage() {
         description="Real-time overview with auto-refresh every 15 seconds."
         meta={<Badge tone="success">Live</Badge>}
       />
+
+      {error && (
+        <div className="mb-6">
+          <Alert tone="error">{error}</Alert>
+        </div>
+      )}
 
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
         <StatCard label="Visits" value={overview.visits} />
@@ -80,7 +117,7 @@ export default function TrafficPage() {
         <BreakdownCard title="By platform" rows={platformBreakdown} />
       </div>
 
-      <h2 className="text-sm font-semibold text-zinc-900 mb-3">Incoming clicks (24h)</h2>
+      <h2 className={`${sectionHeadingClass} mb-3`}>Incoming clicks (24h)</h2>
       <DataTable>
         <table className="w-full text-xs">
           <TableHead>
@@ -95,11 +132,11 @@ export default function TrafficPage() {
           </TableHead>
           <tbody>
             {live.map((c) => (
-              <tr key={c.id} className="border-b border-zinc-50 hover:bg-zinc-50/50">
-                <Td className="text-zinc-400 whitespace-nowrap">
+              <tr key={c.id} className={tableRowClass}>
+                <Td className={`whitespace-nowrap ${mutedTextClass}`}>
                   {new Date(c.createdAt).toLocaleTimeString()}
                 </Td>
-                <Td className="font-medium text-zinc-900">{c.campaign.name}</Td>
+                <Td className={`font-medium ${sectionHeadingClass}`}>{c.campaign.name}</Td>
                 <Td className="max-w-[120px] truncate">{c.publisherName || '—'}</Td>
                 <Td>{c.platform || '—'}</Td>
                 <Td>{c.device || '—'}</Td>
@@ -109,7 +146,7 @@ export default function TrafficPage() {
                   {c.conversions?.length ? (
                     <Badge tone="success">Yes</Badge>
                   ) : (
-                    <span className="text-zinc-300">—</span>
+                    <span className={mutedTextClass}>—</span>
                   )}
                 </Td>
               </tr>
@@ -127,10 +164,10 @@ export default function TrafficPage() {
 function BreakdownCard({ title, rows }: { title: string; rows: BreakdownRow[] }) {
   return (
     <Card>
-      <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-400 mb-4">{title}</h3>
+      <h3 className={`text-xs font-semibold uppercase tracking-wide ${mutedTextClass} mb-4`}>{title}</h3>
       <table className="w-full text-xs">
         <thead>
-          <tr className="text-zinc-400">
+          <tr className={mutedTextClass}>
             <th className="text-left pb-2 font-medium">Name</th>
             <th className="text-right pb-2 font-medium">Clicks</th>
             <th className="text-right pb-2 font-medium">CR%</th>
@@ -138,17 +175,17 @@ function BreakdownCard({ title, rows }: { title: string; rows: BreakdownRow[] })
         </thead>
         <tbody>
           {rows.slice(0, 8).map((r) => (
-            <tr key={r.name} className="border-t border-zinc-50">
-              <td className="py-2 truncate max-w-[140px] text-zinc-700" title={r.name}>
+            <tr key={r.name} className="border-t border-zinc-100 dark:border-zinc-800">
+              <td className={`py-2 truncate max-w-[140px] ${bodyTextClass}`} title={r.name}>
                 {r.name}
               </td>
               <td className="py-2 text-right tabular-nums">{r.clicks}</td>
-              <td className="py-2 text-right tabular-nums text-zinc-500">{r.cr}%</td>
+              <td className={`py-2 text-right tabular-nums ${mutedTextClass}`}>{r.cr}%</td>
             </tr>
           ))}
           {rows.length === 0 && (
             <tr>
-              <td colSpan={3} className="py-6 text-center text-zinc-400">
+              <td colSpan={3} className={`py-6 text-center ${mutedTextClass}`}>
                 No data
               </td>
             </tr>

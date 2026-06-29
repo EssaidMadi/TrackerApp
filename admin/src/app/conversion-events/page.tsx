@@ -1,12 +1,29 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Button, Card, Input, Label, Loading, PageHeader } from '@/components/ui';
-import { trackerApi, type ConversionEventType } from '@/lib/api';
+import { useToast } from '@/components/Toast';
+import {
+  Alert,
+  Button,
+  Card,
+  Checkbox,
+  Input,
+  Label,
+  Loading,
+  PageHeader,
+  TableHead,
+  Th,
+  mutedTextClass,
+  sectionHeadingClass,
+  tableRowClass,
+} from '@/components/ui';
+import { trackerApi, formatApiError, type ConversionEventType } from '@/lib/api';
 
 export default function ConversionEventsPage() {
+  const toast = useToast();
   const [items, setItems] = useState<ConversionEventType[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [label, setLabel] = useState('');
   const [slug, setSlug] = useState('');
   const [countsAsConversion, setCountsAsConversion] = useState(false);
@@ -21,8 +38,14 @@ export default function ConversionEventsPage() {
     setLoading(true);
     trackerApi
       .getConversionEventTypes(true)
-      .then(setItems)
-      .catch(console.error)
+      .then((data) => {
+        setItems(data);
+        setError(null);
+      })
+      .catch((err) => {
+        console.error(err);
+        setError(formatApiError(err));
+      })
       .finally(() => setLoading(false));
   };
 
@@ -43,6 +66,8 @@ export default function ConversionEventsPage() {
       setSlug('');
       setCountsAsConversion(false);
       load();
+    } catch (err) {
+      toast.error(formatApiError(err));
     } finally {
       setSaving(false);
     }
@@ -72,6 +97,8 @@ export default function ConversionEventsPage() {
       });
       setEditingId(null);
       load();
+    } catch (err) {
+      toast.error(formatApiError(err));
     } finally {
       setSaving(false);
     }
@@ -86,6 +113,8 @@ export default function ConversionEventsPage() {
     try {
       await trackerApi.deleteConversionEventType(e.id);
       load();
+    } catch (err) {
+      toast.error(formatApiError(err));
     } finally {
       setSaving(false);
     }
@@ -100,8 +129,14 @@ export default function ConversionEventsPage() {
         description="Configure event types for Overview columns and conversion metrics. Only types marked “Counts as conversion” increment Conversions, CV%, and eCPC."
       />
 
+      {error && (
+        <div className="mb-6">
+          <Alert tone="error">{error}</Alert>
+        </div>
+      )}
+
       <Card className="mb-6 max-w-xl space-y-3">
-        <h2 className="font-semibold">Add event type</h2>
+        <h2 className={sectionHeadingClass}>Add event type</h2>
         <div>
           <Label>Display label</Label>
           <Input value={label} onChange={(ev) => setLabel(ev.target.value)} placeholder="Lead revenue" />
@@ -115,14 +150,11 @@ export default function ConversionEventsPage() {
             className="font-mono"
           />
         </div>
-        <label className="flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
-            checked={countsAsConversion}
-            onChange={(ev) => setCountsAsConversion(ev.target.checked)}
-          />
-          Counts as conversion (Overview Conversions / CV% / eCPC)
-        </label>
+        <Checkbox
+          label="Counts as conversion (Overview Conversions / CV% / eCPC)"
+          checked={countsAsConversion}
+          onChange={setCountsAsConversion}
+        />
         <Button onClick={add} disabled={saving || !label}>
           Add
         </Button>
@@ -130,19 +162,17 @@ export default function ConversionEventsPage() {
 
       <Card>
         <table className="w-full text-sm">
-          <thead>
-            <tr className="text-left text-zinc-400 border-b">
-              <th className="py-2 pr-4">Label</th>
-              <th className="py-2 pr-4">Slug</th>
-              <th className="py-2 pr-4">Order</th>
-              <th className="py-2 pr-4">Active</th>
-              <th className="py-2 pr-4">Counts as conv.</th>
-              <th className="py-2">Actions</th>
-            </tr>
-          </thead>
+          <TableHead>
+            <Th>Label</Th>
+            <Th>Slug</Th>
+            <Th>Order</Th>
+            <Th>Active</Th>
+            <Th>Counts as conv.</Th>
+            <Th>Actions</Th>
+          </TableHead>
           <tbody>
             {items.map((e) => (
-              <tr key={e.id} className="border-b border-zinc-50">
+              <tr key={e.id} className={tableRowClass}>
                 {editingId === e.id ? (
                   <>
                     <td className="py-2 pr-4">
@@ -152,7 +182,7 @@ export default function ConversionEventsPage() {
                         className="text-sm"
                       />
                     </td>
-                    <td className="py-2 pr-4 font-mono text-xs text-zinc-500">{e.slug}</td>
+                    <td className={`py-2 pr-4 font-mono text-xs ${mutedTextClass}`}>{e.slug}</td>
                     <td className="py-2 pr-4">
                       <Input
                         type="number"
@@ -162,24 +192,10 @@ export default function ConversionEventsPage() {
                       />
                     </td>
                     <td className="py-2 pr-4">
-                      <label className="flex items-center gap-2 text-xs">
-                        <input
-                          type="checkbox"
-                          checked={editActive}
-                          onChange={(ev) => setEditActive(ev.target.checked)}
-                        />
-                        Active
-                      </label>
+                      <Checkbox label="Active" checked={editActive} onChange={setEditActive} />
                     </td>
                     <td className="py-2 pr-4">
-                      <label className="flex items-center gap-2 text-xs">
-                        <input
-                          type="checkbox"
-                          checked={editCountsAsConversion}
-                          onChange={(ev) => setEditCountsAsConversion(ev.target.checked)}
-                        />
-                        Yes
-                      </label>
+                      <Checkbox label="Yes" checked={editCountsAsConversion} onChange={setEditCountsAsConversion} />
                     </td>
                     <td className="py-2">
                       <div className="flex gap-2">
@@ -194,10 +210,10 @@ export default function ConversionEventsPage() {
                   </>
                 ) : (
                   <>
-                    <td className={`py-2 pr-4 ${!e.active ? 'text-zinc-400 line-through' : ''}`}>
+                    <td className={`py-2 pr-4 ${!e.active ? `${mutedTextClass} line-through` : ''}`}>
                       {e.displayLabel}
                       {e.isSystem && (
-                        <span className="ml-2 text-[10px] text-zinc-400 uppercase">system</span>
+                        <span className={`ml-2 text-[10px] ${mutedTextClass} uppercase`}>system</span>
                       )}
                     </td>
                     <td className="py-2 pr-4 font-mono text-xs">{e.slug}</td>

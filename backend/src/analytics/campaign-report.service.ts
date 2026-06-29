@@ -101,11 +101,22 @@ export class CampaignReportService {
     };
   }
 
-  private convWhere(campaignId?: string, from?: string, to?: string): Prisma.ConversionWhereInput {
+  private convWhere(
+    campaignId?: string,
+    from?: string,
+    to?: string,
+    excludeBots?: boolean,
+  ): Prisma.ConversionWhereInput {
     const { fromDate, toDate } = this.parseRange(from, to);
+    const clickFilter: Prisma.ClickWhereInput = {
+      ...(campaignId ? { campaignId } : {}),
+      createdAt: { gte: fromDate, lte: toDate },
+      ...(excludeBots ? { isBot: false } : {}),
+    };
     return {
       ...(campaignId ? { campaignId } : {}),
       createdAt: { gte: fromDate, lte: toDate },
+      ...(excludeBots ? { click: { is: clickFilter } } : {}),
     };
   }
 
@@ -137,7 +148,7 @@ export class CampaignReportService {
 
     for (const campaign of campaigns) {
       const clickWhere = this.clickWhere(campaign.id, from, to, excludeBots);
-      const convWhere = this.convWhere(campaign.id, from, to);
+      const convWhere = this.convWhere(campaign.id, from, to, excludeBots);
       const convCountWhere = await this.eventTypes.applyConversionCountFilter(convWhere);
       const spendWhere = this.spendWhere(campaign.id, from, to);
 
@@ -266,34 +277,62 @@ export class CampaignReportService {
     campaignId?: string,
   ): Promise<TimeseriesPoint[]> {
     const { fromDate, toDate } = this.parseRange(from, to);
-    const conversionSlugs = new Set(await this.eventTypes.getConversionCountSlugs());
+    const conversionSlugs = await this.eventTypes.getConversionCountSlugs();
+    const slugList =
+      conversionSlugs.length > 0 ? conversionSlugs : ['__no_conversion_slugs__'];
+    const truncUnit = granularity === 'day' ? 'day' : 'hour';
 
-    const clicks = await this.prisma.click.findMany({
-      where: {
-        ...(campaignId ? { campaignId } : {}),
-        createdAt: { gte: fromDate, lte: toDate },
-      },
-      select: { createdAt: true },
-    });
+    const clickConditions: Prisma.Sql[] = [
+      Prisma.sql`created_at >= ${fromDate}`,
+      Prisma.sql`created_at <= ${toDate}`,
+    ];
+    const convConditions: Prisma.Sql[] = [
+      Prisma.sql`cv.created_at >= ${fromDate}`,
+      Prisma.sql`cv.created_at <= ${toDate}`,
+    ];
+    const spendConditions: Prisma.Sql[] = [
+      Prisma.sql`date >= ${fromDate}`,
+      Prisma.sql`date <= ${toDate}`,
+    ];
+    if (campaignId) {
+      clickConditions.push(Prisma.sql`campaign_id = ${campaignId}`);
+      convConditions.push(Prisma.sql`cv.campaign_id = ${campaignId}`);
+      spendConditions.push(Prisma.sql`campaign_id = ${campaignId}`);
+    }
 
-    const conversions = await this.prisma.conversion.findMany({
-      where: {
-        ...(campaignId ? { campaignId } : {}),
-        createdAt: { gte: fromDate, lte: toDate },
-        ...(conversionSlugs.size > 0
-          ? { eventType: { in: [...conversionSlugs] } }
-          : { eventType: { in: ['__no_conversion_slugs__'] } }),
-      },
-      select: { createdAt: true, revenue: true, cost: true, eventType: true },
-    });
-
-    const spendRows = await this.prisma.campaignSpendSnapshot.findMany({
-      where: {
-        ...(campaignId ? { campaignId } : {}),
-        date: { gte: fromDate, lte: toDate },
-      },
-      select: { date: true, hour: true, impressions: true, clicks: true, spend: true },
-    });
+    const [clickBuckets, conversionBuckets, spendRows] = await Promise.all([
+      this.prisma.$queryRaw<Array<{ bucket: Date; visits: number }>>`
+        SELECT date_trunc(${truncUnit}, created_at) AS bucket, COUNT(*)::int AS visits
+        FROM clicks
+        WHERE ${Prisma.join(clickConditions, ' AND ')}
+        GROUP BY 1
+        ORDER BY 1
+        LIMIT 10000
+      `,
+      this.prisma.$queryRaw<
+        Array<{ bucket: Date; conversions: number; revenue: number; cost: number }>
+      >`
+        SELECT
+          date_trunc(${truncUnit}, cv.created_at) AS bucket,
+          COUNT(*)::int AS conversions,
+          COALESCE(SUM(cv.revenue), 0)::float AS revenue,
+          COALESCE(SUM(cv.cost), 0)::float AS cost
+        FROM conversions cv
+        WHERE ${Prisma.join(convConditions, ' AND ')}
+          AND cv.event_type IN (${Prisma.join(slugList)})
+        GROUP BY 1
+        ORDER BY 1
+        LIMIT 10000
+      `,
+      this.prisma.campaignSpendSnapshot.findMany({
+        where: {
+          ...(campaignId ? { campaignId } : {}),
+          date: { gte: fromDate, lte: toDate },
+        },
+        select: { date: true, hour: true, impressions: true, clicks: true, spend: true },
+        take: 10000,
+      }),
+    ]);
 
     const buckets = new Map<string, TimeseriesPoint>();
 
@@ -323,16 +362,16 @@ export class CampaignReportService {
       return p;
     };
 
-    for (const c of clicks) {
-      const p = ensure(bucketKey(c.createdAt));
-      p.visits++;
+    for (const row of clickBuckets) {
+      const p = ensure(bucketKey(row.bucket));
+      p.visits = row.visits;
     }
 
-    for (const c of conversions) {
-      const p = ensure(bucketKey(c.createdAt));
-      p.conversions++;
-      p.revenue += c.revenue || 0;
-      p.cost += c.cost || 0;
+    for (const row of conversionBuckets) {
+      const p = ensure(bucketKey(row.bucket));
+      p.conversions = row.conversions;
+      p.revenue = row.revenue;
+      p.cost += row.cost;
       p.profit = p.revenue - p.cost;
     }
 
@@ -349,25 +388,25 @@ export class CampaignReportService {
 
   async getGlobalRollup(from?: string, to?: string, excludeBots?: boolean) {
     const clickWhere = this.clickWhere(undefined, from, to, excludeBots);
-    const convWhere = this.convWhere(undefined, from, to);
+    const convWhere = this.convWhere(undefined, from, to, excludeBots);
     const convCountWhere = await this.eventTypes.applyConversionCountFilter(convWhere);
     const spendWhere = this.spendWhere(undefined, from, to);
 
-    const [visitStats, conversions, revenueAgg, spendAgg, convCostAgg] = await Promise.all([
-      getVisitStats(this.prisma, undefined, from, to),
-      this.prisma.conversion.count({ where: convCountWhere }),
-      this.prisma.conversion.aggregate({ where: convWhere, _sum: { revenue: true, cost: true } }),
-      this.prisma.campaignSpendSnapshot.aggregate({
-        where: spendWhere,
-        _sum: { spend: true, impressions: true, clicks: true },
-      }),
-      this.prisma.conversion.aggregate({ where: convWhere, _sum: { cost: true } }),
-    ]);
+    const [visitStats, conversions, sentConversions, revenueAgg, spendAgg, convCostAgg, suspiciousVisits] =
+      await Promise.all([
+        getVisitStats(this.prisma, undefined, from, to, excludeBots),
+        this.prisma.conversion.count({ where: convCountWhere }),
+        this.prisma.conversion.count({ where: { ...convCountWhere, status: 'sent' } }),
+        this.prisma.conversion.aggregate({ where: convWhere, _sum: { revenue: true, cost: true } }),
+        this.prisma.campaignSpendSnapshot.aggregate({
+          where: spendWhere,
+          _sum: { spend: true, impressions: true, clicks: true },
+        }),
+        this.prisma.conversion.aggregate({ where: convWhere, _sum: { cost: true } }),
+        this.prisma.click.count({ where: { ...clickWhere, isBot: true } }),
+      ]);
 
     const { visits, uniqueVisits, newVisitors, returningVisitors } = visitStats;
-    const suspiciousVisits = await this.prisma.click.count({
-      where: { ...clickWhere, isBot: true },
-    });
     const revenue = revenueAgg._sum.revenue || 0;
     const spendCost = spendAgg._sum.spend || 0;
     const cost = spendCost > 0 ? spendCost : convCostAgg._sum.cost || 0;
@@ -388,7 +427,7 @@ export class CampaignReportService {
       cost,
       profit,
       conversionRate: visits > 0 ? ((conversions / visits) * 100).toFixed(2) : '0',
-      sentConversions: 0,
+      sentConversions,
     };
   }
 

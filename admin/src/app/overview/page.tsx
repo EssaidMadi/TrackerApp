@@ -2,11 +2,13 @@
 
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import {
+  Alert,
   Button,
   Card,
   Loading,
   PageHeader,
   StatCard,
+  sectionHeadingClass,
   type StatCardTone,
 } from '@/components/ui';
 import { DateRangePicker, buildPresets, type DateRange } from '@/components/DateRangePicker';
@@ -14,7 +16,7 @@ import { ExcludeBotsToggle } from '@/components/ExcludeBotsToggle';
 import { OverviewChart } from '@/components/OverviewChart';
 import { CampaignReportTable } from '@/components/CampaignReportTable';
 import { OverviewColumnPicker } from '@/components/OverviewColumnPicker';
-import { trackerApi, type CampaignReportRow, type DigestReport, type EventColumnDef, type TimeseriesPoint, type VisitStats } from '@/lib/api';
+import { trackerApi, formatApiError, type CampaignReportRow, type DigestReport, type EventColumnDef, type TimeseriesPoint, type VisitStats } from '@/lib/api';
 import {
   buildOverviewColumns,
   loadVisibleColumns,
@@ -54,6 +56,7 @@ export default function OverviewPage() {
   const [eventColumns, setEventColumns] = useState<EventColumnDef[]>([]);
   const [timeseries, setTimeseries] = useState<TimeseriesPoint[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [activeMetrics, setActiveMetrics] = useState(
     () => new Set(['visits', 'conversions', 'revenue', 'cost']),
   );
@@ -79,6 +82,7 @@ export default function OverviewPage() {
         setEventColumns(report.eventColumns);
         setTimeseries(ts);
         setDigest(dig);
+        setError(null);
         const allIds = buildOverviewColumns(report.eventColumns).map((c) => c.id);
         setVisibleColumns((prev) => {
           if (prev.size > 0) {
@@ -88,13 +92,50 @@ export default function OverviewPage() {
           return loadVisibleColumns(allIds);
         });
       })
-      .catch(console.error)
+      .catch((err) => {
+        console.error(err);
+        setError(formatApiError(err));
+      })
       .finally(() => setLoading(false));
   }, [range.from, range.to, excludeBots]);
 
   useEffect(() => {
-    load();
-  }, [load]);
+    let cancelled = false;
+    setLoading(true);
+
+    Promise.all([
+      trackerApi.getAnalyticsOverview(params),
+      trackerApi.getCampaignReport(params),
+      trackerApi.getTimeseries({ ...params, granularity: 'hour' }),
+      trackerApi.getDigest({ ...params, eventType: 'call_click' }),
+    ])
+      .then(([ov, report, ts, dig]) => {
+        if (cancelled) return;
+        setOverview(ov);
+        setRows(report.rows);
+        setEventColumns(report.eventColumns);
+        setTimeseries(ts);
+        setDigest(dig);
+        setError(null);
+        const allIds = buildOverviewColumns(report.eventColumns).map((c) => c.id);
+        setVisibleColumns((prev) => {
+          if (prev.size > 0) {
+            const kept = new Set([...prev].filter((id) => allIds.includes(id)));
+            if (kept.size > 0) return kept;
+          }
+          return loadVisibleColumns(allIds);
+        });
+      })
+      .catch((err) => {
+        console.error(err);
+        if (!cancelled) setError(formatApiError(err));
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => { cancelled = true; };
+  }, [range.from, range.to, excludeBots]);
 
   const toggleMetric = (key: string) => {
     setActiveMetrics((prev) => {
@@ -155,9 +196,15 @@ export default function OverviewPage() {
         <ExcludeBotsToggle value={excludeBots} onChange={setExcludeBots} />
       </div>
 
+      {error && (
+        <div className="mb-6">
+          <Alert tone="error">{error}</Alert>
+        </div>
+      )}
+
       {digest && digest.items.length > 0 && (
         <Card elevated className="mb-8 border-indigo-200/60 dark:border-indigo-800/60 bg-indigo-50/30 dark:bg-indigo-950/20">
-          <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50 mb-4">Today&apos;s decisions</h2>
+          <h2 className={`${sectionHeadingClass} mb-4`}>Today&apos;s decisions</h2>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
             {digest.items.slice(0, 6).map((item) => (
               <div
@@ -186,12 +233,12 @@ export default function OverviewPage() {
       </div>
 
       <Card elevated className="mb-8">
-        <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50 mb-4">Performance over time</h2>
+        <h2 className={`${sectionHeadingClass} mb-4`}>Performance over time</h2>
         <OverviewChart data={timeseries} active={activeMetrics} onToggle={toggleMetric} />
       </Card>
 
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">Campaign performance</h2>
+        <h2 className={sectionHeadingClass}>Campaign performance</h2>
         <OverviewColumnPicker
           eventColumns={eventColumns}
           visible={visibleColumns}

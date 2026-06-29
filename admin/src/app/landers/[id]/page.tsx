@@ -1,20 +1,25 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useToast } from '@/components/Toast';
 import {
+  Alert,
   Badge,
   Button,
   Card,
+  Checkbox,
   Input,
   Label,
   Loading,
   PageHeader,
+  PreBlock,
   Select,
+  mutedTextClass,
+  sectionHeadingClass,
 } from '@/components/ui';
-import { trackerApi, type Campaign, type Lander, type LanderSuggestion } from '@/lib/api';
+import { trackerApi, formatApiError, type Campaign, type Lander, type LanderSuggestion } from '@/lib/api';
 
 export default function LanderDetailPage() {
   const toast = useToast();
@@ -25,6 +30,7 @@ export default function LanderDetailPage() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [suggestion, setSuggestion] = useState<LanderSuggestion | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
 
@@ -39,10 +45,13 @@ export default function LanderDetailPage() {
     noViewContent: false,
   });
 
-  const load = useCallback(() => {
+  useEffect(() => {
+    let cancelled = false;
     setLoading(true);
+
     Promise.all([trackerApi.getLander(id), trackerApi.getCampaigns()])
       .then(async ([l, c]) => {
+        if (cancelled) return;
         setLander(l);
         setCampaigns(c);
         setForm({
@@ -56,15 +65,21 @@ export default function LanderDetailPage() {
           noViewContent: l.trackerAttrs?.noViewContent === true,
         });
         const s = await trackerApi.suggestLander({ campaignId: l.campaignId, name: l.name });
-        setSuggestion(s);
+        if (!cancelled) {
+          setSuggestion(s);
+          setError(null);
+        }
       })
-      .catch(console.error)
-      .finally(() => setLoading(false));
-  }, [id]);
+      .catch((err) => {
+        console.error(err);
+        if (!cancelled) setError(formatApiError(err));
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
 
-  useEffect(() => {
-    load();
-  }, [load]);
+    return () => { cancelled = true; };
+  }, [id]);
 
   const refreshSuggestions = async (campaignId: string, name: string) => {
     try {
@@ -92,7 +107,7 @@ export default function LanderDetailPage() {
       setLander(updated);
       toast.success('Saved — campaign destination URL and lander metadata updated.');
     } catch (err) {
-      toast.error(String(err));
+      toast.error(formatApiError(err));
     } finally {
       setSaving(false);
     }
@@ -111,7 +126,7 @@ export default function LanderDetailPage() {
       setLander(updated);
       toast.success('Upload complete — tracker script injected in processed copy.');
     } catch (err) {
-      toast.error(String(err));
+      toast.error(formatApiError(err));
     } finally {
       setUploading(false);
       e.target.value = '';
@@ -127,16 +142,22 @@ export default function LanderDetailPage() {
         description={`Linked to campaign ${lander.campaign.name}`}
         meta={<Badge tone={lander.status === 'ready' ? 'success' : 'neutral'}>{lander.status}</Badge>}
         action={
-          <Link href="/landers" className="text-sm text-zinc-500 hover:text-zinc-800">
+          <Link href="/landers" className={`text-sm ${mutedTextClass} hover:text-zinc-800 dark:hover:text-zinc-200`}>
             ← All landers
           </Link>
         }
       />
 
+      {error && (
+        <div className="mb-6">
+          <Alert tone="error">{error}</Alert>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
         <Card>
           <form onSubmit={handleSave} className="space-y-4">
-            <h3 className="font-semibold text-zinc-900">Lander settings</h3>
+            <h3 className={sectionHeadingClass}>Lander settings</h3>
             <div>
               <Label>Name</Label>
               <Input
@@ -222,22 +243,16 @@ export default function LanderDetailPage() {
                 onChange={(e) => setForm({ ...form, entryFile: e.target.value })}
               />
             </div>
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={form.injectTracker}
-                onChange={(e) => setForm({ ...form, injectTracker: e.target.checked })}
-              />
-              Inject tracker script on upload
-            </label>
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={form.noViewContent}
-                onChange={(e) => setForm({ ...form, noViewContent: e.target.checked })}
-              />
-              Skip auto viewcontent (optimize for click_button)
-            </label>
+            <Checkbox
+              label="Inject tracker script on upload"
+              checked={form.injectTracker}
+              onChange={(checked) => setForm({ ...form, injectTracker: checked })}
+            />
+            <Checkbox
+              label="Skip auto viewcontent (optimize for click_button)"
+              checked={form.noViewContent}
+              onChange={(checked) => setForm({ ...form, noViewContent: checked })}
+            />
             <Button type="submit" disabled={saving}>
               {saving ? 'Saving…' : 'Save & link campaign'}
             </Button>
@@ -245,8 +260,8 @@ export default function LanderDetailPage() {
         </Card>
 
         <Card>
-          <h3 className="font-semibold text-zinc-900 mb-4">Upload & deploy</h3>
-          <p className="text-sm text-zinc-500 mb-4">
+          <h3 className={`${sectionHeadingClass} mb-4`}>Upload & deploy</h3>
+          <p className={`text-sm ${mutedTextClass} mb-4`}>
             Upload a zip or individual HTML/CSS/JS files. {lander.fileCount} raw file(s),{' '}
             {lander.processedCount} processed.
           </p>
@@ -288,21 +303,21 @@ export default function LanderDetailPage() {
                   setLander(updated);
                   toast.success('Re-processed with current campaign settings.');
                 } catch (err) {
-                  toast.error(String(err));
+                  toast.error(formatApiError(err));
                 }
               }}
             >
               Re-process
             </Button>
           </div>
-          <p className="text-xs text-zinc-400 mt-4 font-mono">{lander.deployCommand}</p>
+          <p className={`text-xs ${mutedTextClass} mt-4 font-mono`}>{lander.deployCommand}</p>
         </Card>
       </div>
 
       {suggestion?.trackerSnippet && (
         <Card>
-          <h3 className="font-semibold text-zinc-900 mb-2">Tracker snippet (auto-injected)</h3>
-          <pre className="text-xs bg-zinc-50 p-4 rounded-lg overflow-x-auto">{suggestion.trackerSnippet}</pre>
+          <h3 className={`${sectionHeadingClass} mb-2`}>Tracker snippet (auto-injected)</h3>
+          <PreBlock>{suggestion.trackerSnippet}</PreBlock>
         </Card>
       )}
     </div>

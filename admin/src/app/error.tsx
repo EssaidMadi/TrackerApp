@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
-import { Button } from '@/components/ui';
+import { Button, mutedTextClass, pageTitleClass } from '@/components/ui';
 
 function isChunkError(error: Error) {
   return (
@@ -29,8 +29,8 @@ export default function Error({
 
   return (
     <div className="max-w-md mx-auto mt-24 p-8 text-center">
-      <h2 className="text-lg font-semibold text-zinc-900 mb-2">This page couldn&apos;t load</h2>
-      <p className="text-sm text-zinc-500 mb-6">
+      <h2 className={`text-lg font-semibold mb-2 ${pageTitleClass}`}>This page couldn&apos;t load</h2>
+      <p className={`text-sm mb-6 ${mutedTextClass}`}>
         {isChunkError(error)
           ? 'The app was updated while this tab was open. Reload to fetch the latest version.'
           : error.message || 'An unexpected error occurred.'}

@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
-import { AlertSeverity, AlertStatus, RuleMetric, RuleScope } from '@prisma/client';
+import { AlertSeverity, AlertStatus, RuleMetric, RuleOperator, RuleScope } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { PlacementAnalyticsService } from '../analytics/placement-analytics.service';
 import { CampaignReportService } from '../analytics/campaign-report.service';
@@ -22,14 +22,31 @@ export class RulesEngineService {
     this.logger.log('Evaluating optimization rules');
     const rules = await this.prisma.optimizationRule.findMany({ where: { enabled: true } });
     const now = new Date();
-    const from = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
 
     for (const rule of rules) {
       try {
+        const from = new Date(
+          now.getTime() - rule.windowHours * 60 * 60 * 1000,
+        ).toISOString();
         await this.evaluateRule(rule, from, now.toISOString());
       } catch (err) {
         this.logger.error(`Rule ${rule.id} failed`, err);
       }
+    }
+  }
+
+  private compareMetric(value: number, operator: RuleOperator, threshold: number): boolean {
+    switch (operator) {
+      case RuleOperator.lt:
+        return value < threshold;
+      case RuleOperator.lte:
+        return value <= threshold;
+      case RuleOperator.gt:
+        return value > threshold;
+      case RuleOperator.gte:
+        return value >= threshold;
+      default:
+        return false;
     }
   }
 
@@ -39,7 +56,7 @@ export class RulesEngineService {
       scope: RuleScope;
       metric: RuleMetric;
       threshold: number;
-      operator: string;
+      operator: RuleOperator;
       action: string;
       severity: AlertSeverity;
       campaignId: string | null;
@@ -95,7 +112,9 @@ export class RulesEngineService {
 
     if (rule.metric === RuleMetric.roi && rule.scope === RuleScope.campaign) {
       const { rows } = await this.campaignReport.getCampaignReport(from, to);
-      for (const row of rows.filter((r) => r.roi < rule.threshold && r.cost >= 5)) {
+      for (const row of rows) {
+        if (rule.campaignId && row.campaignId !== rule.campaignId) continue;
+        if (!this.compareMetric(row.roi, rule.operator, rule.threshold) || row.cost < 5) continue;
         await this.createAlertIfNew({
           ruleId: rule.id,
           severity: rule.severity,
@@ -106,6 +125,29 @@ export class RulesEngineService {
           message: `ROI ${row.roi.toFixed(1)}% with $${row.cost.toFixed(2)} spend.`,
           suggestedAction: 'Reduce budget or pause campaign.',
           metricValue: row.roi,
+          campaignId: row.campaignId,
+        });
+      }
+      return;
+    }
+
+    if (rule.metric === RuleMetric.cpa && rule.scope === RuleScope.campaign) {
+      const { rows } = await this.campaignReport.getCampaignReport(from, to);
+      for (const row of rows) {
+        if (rule.campaignId && row.campaignId !== rule.campaignId) continue;
+        if (row.conversions === 0 || row.cost < 5) continue;
+        const cpa = row.ecpc;
+        if (!this.compareMetric(cpa, rule.operator, rule.threshold)) continue;
+        await this.createAlertIfNew({
+          ruleId: rule.id,
+          severity: rule.severity,
+          scope: rule.scope,
+          entityKey: row.campaignId,
+          entityLabel: row.campaignName,
+          title: `${rule.name}: ${row.campaignName}`,
+          message: `CPA $${cpa.toFixed(2)} with $${row.cost.toFixed(2)} spend and ${row.conversions} conversions.`,
+          suggestedAction: 'Review targeting, creatives, or pause campaign.',
+          metricValue: cpa,
           campaignId: row.campaignId,
         });
       }

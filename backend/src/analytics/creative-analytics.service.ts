@@ -205,9 +205,11 @@ export class CreativeAnalyticsService {
       countMode,
     );
 
-    const visitsWithEvent = benchmarks.totalVisits > 0
-      ? Array.from(convByClick.keys()).filter((cid) => clicks.some((c) => c.clickId === cid)).length
-      : 0;
+    const clickIdSet = new Set(clicks.map((c) => c.clickId));
+    const visitsWithEvent =
+      benchmarks.totalVisits > 0
+        ? Array.from(convByClick.keys()).filter((cid) => clickIdSet.has(cid)).length
+        : 0;
 
     return {
       selectedEvent: {

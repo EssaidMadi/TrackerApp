@@ -24,23 +24,27 @@ export class AnalyticsService {
     private readonly eventTypes: ConversionEventTypesService,
   ) {}
 
-  async getOverview(campaignId?: string, from?: string, to?: string) {
-    const clickWhere = this.dateFilter(campaignId, from, to);
-    const convWhere = {
+  async getOverview(
+    campaignId?: string,
+    from?: string,
+    to?: string,
+    excludeBots?: boolean,
+  ) {
+    const { fromDate, toDate } = this.resolveDateRange(from, to);
+    const clickFilter: Prisma.ClickWhereInput = {
       ...(campaignId ? { campaignId } : {}),
-      ...(from || to
-        ? {
-            createdAt: {
-              ...(from ? { gte: new Date(from) } : {}),
-              ...(to ? { lte: new Date(to) } : {}),
-            },
-          }
-        : {}),
+      createdAt: { gte: fromDate, lte: toDate },
+      ...(excludeBots ? { isBot: false } : {}),
+    };
+    const convWhere: Prisma.ConversionWhereInput = {
+      ...(campaignId ? { campaignId } : {}),
+      createdAt: { gte: fromDate, lte: toDate },
+      ...(excludeBots ? { click: { is: clickFilter } } : {}),
     };
     const convCountWhere = await this.eventTypes.applyConversionCountFilter(convWhere);
 
     const [visitStats, conversions, sentConversions] = await Promise.all([
-      getVisitStats(this.prisma, campaignId, from, to),
+      getVisitStats(this.prisma, campaignId, from, to, excludeBots),
       this.prisma.conversion.count({ where: convCountWhere }),
       this.prisma.conversion.count({ where: { ...convCountWhere, status: 'sent' } }),
     ]);
@@ -73,44 +77,80 @@ export class AnalyticsService {
       country: 'countryCode',
       browser: 'browser',
     };
+    const columnMap: Record<BreakdownDimension, string> = {
+      publisherName: 'publisher_name',
+      platform: 'platform',
+      device: 'device',
+      os: 'os',
+      countryCode: 'country_code',
+      browser: 'browser',
+    };
 
     const field = fieldMap[dimension] || 'publisherName';
-    const where = this.dateFilter(campaignId, from, to);
+    const column = columnMap[field];
+    const { fromDate, toDate } = this.resolveDateRange(from, to);
+    const clickWhere: Prisma.ClickWhereInput = {
+      ...(campaignId ? { campaignId } : {}),
+      createdAt: { gte: fromDate, lte: toDate },
+    };
     const conversionSlugs = await this.eventTypes.getConversionCountSlugs();
 
-    const clicks = await this.prisma.click.findMany({ where });
+    const clickGroups = await this.prisma.click.groupBy({
+      by: [field],
+      where: clickWhere,
+      _count: { _all: true },
+    });
 
-    const groups = new Map<string, { clicks: number; clickIds: string[] }>();
+    const clickConditions: Prisma.Sql[] = [
+      Prisma.sql`c.created_at >= ${fromDate}`,
+      Prisma.sql`c.created_at <= ${toDate}`,
+    ];
+    if (campaignId) clickConditions.push(Prisma.sql`c.campaign_id = ${campaignId}`);
 
-    for (const click of clicks) {
-      const value = this.getDimensionValue(click, field);
-      const key = value || '(unknown)';
-      const g = groups.get(key) || { clicks: 0, clickIds: [] };
-      g.clicks++;
-      g.clickIds.push(click.clickId);
-      groups.set(key, g);
-    }
+    const slugList =
+      conversionSlugs.length > 0 ? conversionSlugs : ['__no_conversion_slugs__'];
 
-    const results = await Promise.all(
-      Array.from(groups.entries()).map(async ([name, stats]) => {
-        const conversions = await this.prisma.conversion.count({
-          where: {
-            clickId: { in: stats.clickIds },
-            status: 'sent',
-            ...(conversionSlugs.length > 0
-              ? { eventType: { in: conversionSlugs } }
-              : { eventType: { in: ['__no_conversion_slugs__'] } }),
-          },
-        });
+    const conversionRows = await this.prisma.$queryRaw<
+      Array<{ name: string; conversions: number }>
+    >`
+      SELECT
+        COALESCE(c.${Prisma.raw(column)}, '(unknown)') AS name,
+        COUNT(cv.id)::int AS conversions
+      FROM clicks c
+      INNER JOIN conversions cv ON cv.click_id = c.click_id
+      WHERE ${Prisma.join(clickConditions, ' AND ')}
+        AND cv.status = 'sent'
+        AND cv.event_type IN (${Prisma.join(slugList)})
+      GROUP BY COALESCE(c.${Prisma.raw(column)}, '(unknown)')
+    `;
 
-        return {
-          name,
-          clicks: stats.clicks,
-          conversions,
-          cr: stats.clicks > 0 ? ((conversions / stats.clicks) * 100).toFixed(2) : '0',
-        };
-      }),
+    const conversionsByName = new Map(
+      conversionRows.map((row) => [row.name, row.conversions]),
     );
+
+    const results = clickGroups.map((group) => {
+      const name = (group[field] as string | null) || '(unknown)';
+      const clicks = group._count._all;
+      const conversions = conversionsByName.get(name) ?? 0;
+
+      return {
+        name,
+        clicks,
+        conversions,
+        cr: clicks > 0 ? ((conversions / clicks) * 100).toFixed(2) : '0',
+      };
+    });
+
+    for (const [name, conversions] of conversionsByName) {
+      if (!results.some((r) => r.name === name)) {
+        results.push({
+          name,
+          clicks: 0,
+          conversions,
+          cr: '0',
+        });
+      }
+    }
 
     return results.sort((a, b) => b.clicks - a.clicks);
   }
@@ -346,25 +386,11 @@ export class AnalyticsService {
     });
   }
 
-  private getDimensionValue(
-    click: Record<string, unknown>,
-    field: BreakdownDimension,
-  ): string | null {
-    const v = click[field];
-    return typeof v === 'string' ? v : null;
-  }
-
-  private dateFilter(campaignId?: string, from?: string, to?: string) {
-    return {
-      ...(campaignId ? { campaignId } : {}),
-      ...(from || to
-        ? {
-            createdAt: {
-              ...(from ? { gte: new Date(from) } : {}),
-              ...(to ? { lte: new Date(to) } : {}),
-            },
-          }
-        : {}),
-    };
+  private resolveDateRange(from?: string, to?: string) {
+    const toDate = to ? new Date(to) : new Date();
+    const fromDate = from
+      ? new Date(from)
+      : new Date(toDate.getTime() - 7 * 24 * 60 * 60 * 1000);
+    return { fromDate, toDate };
   }
 }

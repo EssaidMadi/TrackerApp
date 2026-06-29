@@ -1,3 +1,7 @@
+import { formatApiError, parseApiErrorBody, parseJsonResponse } from './api-errors';
+
+export { formatApiError };
+
 async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
   const proxyPath = path.startsWith('/api/') ? path.slice(5) : path.replace(/^\//, '');
   const res = await fetch(`/api/admin/${proxyPath}`, {
@@ -10,18 +14,10 @@ async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
 
   if (!res.ok) {
     const text = await res.text();
-    try {
-      const json = JSON.parse(text) as { message?: string | string[] };
-      const msg = json.message;
-      if (typeof msg === 'string') throw new Error(msg);
-      if (Array.isArray(msg)) throw new Error(msg.join(', '));
-    } catch (e) {
-      if (e instanceof Error && e.message !== text) throw e;
-    }
-    throw new Error(text || `API error ${res.status}`);
+    throw parseApiErrorBody(text, res.status);
   }
 
-  return res.json();
+  return parseJsonResponse<T>(res);
 }
 
 export interface DnsRecord {
@@ -661,7 +657,7 @@ async function adminRaw(path: string, options: RequestInit = {}) {
   const res = await fetch(`/api/admin/${proxyPath}`, options);
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(text || `API error ${res.status}`);
+    throw parseApiErrorBody(text, res.status);
   }
   return res;
 }
@@ -935,13 +931,13 @@ export const trackerApi = {
     const fd = new FormData();
     fd.append('file', file);
     const res = await adminRaw(`landers/${id}/upload`, { method: 'POST', body: fd });
-    return res.json() as Promise<Lander>;
+    return parseJsonResponse<Lander>(res);
   },
   uploadLanderFiles: async (id: string, files: File[]) => {
     const fd = new FormData();
     for (const f of files) fd.append('files', f);
     const res = await adminRaw(`landers/${id}/upload-files`, { method: 'POST', body: fd });
-    return res.json() as Promise<Lander>;
+    return parseJsonResponse<Lander>(res);
   },
   reprocessLander: (id: string) =>
     api<Lander>(`/api/landers/${id}/reprocess`, { method: 'POST' }),

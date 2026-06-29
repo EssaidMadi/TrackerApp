@@ -2,25 +2,36 @@
 
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import Link from 'next/link';
 import { useToast } from '@/components/Toast';
 import {
+  Alert,
   Badge,
   Button,
   Card,
+  Checkbox,
   CodeBlock,
   Input,
+  InlineLink,
   Label,
   Loading,
   Select,
   StatCard,
+  TableHead,
+  Th,
+  bodyTextClass,
+  inlineCodeClass,
+  mutedTextClass,
+  pageTitleClass,
+  sectionHeadingClass,
   statusTone,
+  tableRowClass,
 } from '@/components/ui';
 import { PostbackPreview } from '@/components/PostbackPreview';
 import { IncomingConversionGuide } from '@/components/IncomingConversionGuide';
 import { MediagoConversionTypeTable } from '@/components/MediagoConversionTypeTable';
 import {
   trackerApi,
+  formatApiError,
   type Campaign,
   type PostbackConfig,
   type TrackingDomain,
@@ -71,40 +82,50 @@ export default function CampaignDetailPage() {
   const [domains, setDomains] = useState<TrackingDomain[]>([]);
   const [profiles, setProfiles] = useState<TrafficSourceProfile[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [target, setTarget] = useState<Partial<CampaignTarget>>({});
   const [pacing, setPacing] = useState<CampaignPacing | null>(null);
 
-  const load = async () => {
-    setLoading(true);
-    try {
-      const c = await trackerApi.getCampaign(id);
-      setCampaign(c);
-      setForm(toForm(c));
-      if (c.postbackConfig) setPostback(c.postbackConfig);
-      trackerApi.getCampaignTarget(id).then((t) => t && setTarget(t)).catch(() => {});
-      trackerApi.getCampaignPacing(id).then(setPacing).catch(() => {});
-    } catch (err) {
-      console.error('Failed to load campaign:', err);
-      setCampaign(null);
-      setForm(null);
-    }
-    try {
-      const s = await trackerApi.getStats(id);
-      setStats(s);
-    } catch (err) {
-      console.error('Failed to load campaign stats:', err);
-      setStats(null);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
-    load();
-    trackerApi.getDomains().then(setDomains).catch(console.error);
-    trackerApi.getTrafficSources().then(setProfiles).catch(console.error);
+    let cancelled = false;
+
+    const loadCampaign = async () => {
+      setLoading(true);
+      try {
+        const c = await trackerApi.getCampaign(id);
+        if (cancelled) return;
+        setCampaign(c);
+        setForm(toForm(c));
+        if (c.postbackConfig) setPostback(c.postbackConfig);
+        setError(null);
+        trackerApi.getCampaignTarget(id).then((t) => { if (!cancelled && t) setTarget(t); }).catch(() => {});
+        trackerApi.getCampaignPacing(id).then((p) => { if (!cancelled) setPacing(p); }).catch(() => {});
+      } catch (err) {
+        console.error('Failed to load campaign:', err);
+        if (!cancelled) {
+          setCampaign(null);
+          setForm(null);
+          setError(formatApiError(err));
+        }
+      }
+      try {
+        const s = await trackerApi.getStats(id);
+        if (!cancelled) setStats(s);
+      } catch (err) {
+        console.error('Failed to load campaign stats:', err);
+        if (!cancelled) setStats(null);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+
+    loadCampaign();
+    trackerApi.getDomains().then((d) => { if (!cancelled) setDomains(d); }).catch(console.error);
+    trackerApi.getTrafficSources().then((p) => { if (!cancelled) setProfiles(p); }).catch(console.error);
+
+    return () => { cancelled = true; };
   }, [id]);
 
   const saveCampaign = async (e: React.FormEvent) => {
@@ -117,7 +138,7 @@ export default function CampaignDetailPage() {
       setForm(toForm(updated));
       toast.success('Campaign saved');
     } catch (err) {
-      toast.error(String(err));
+      toast.error(formatApiError(err));
     } finally {
       setSaving(false);
     }
@@ -135,7 +156,7 @@ export default function CampaignDetailPage() {
       await trackerApi.deleteCampaign(id);
       router.push('/');
     } catch (err) {
-      toast.error(String(err));
+      toast.error(formatApiError(err));
       setDeleting(false);
     }
   };
@@ -146,29 +167,29 @@ export default function CampaignDetailPage() {
       setCampaign(updated);
       toast.success('Postback config saved');
     } catch (err) {
-      toast.error(String(err));
+      toast.error(formatApiError(err));
     }
   };
 
   if (loading) return <Loading />;
-  if (!campaign || !form) return <p className="text-red-600 text-sm">Campaign not found</p>;
+  if (!campaign || !form) return <Alert tone="error">Campaign not found</Alert>;
 
   return (
     <div>
-      <Link href="/" className="text-sm text-indigo-600 hover:text-indigo-800 font-medium mb-6 inline-block">
+      <InlineLink href="/" className="text-sm font-medium mb-6 inline-block">
         ← Back to campaigns
-      </Link>
+      </InlineLink>
 
       <div className="flex items-start justify-between mb-8">
         <div>
           <div className="flex items-center gap-3">
-            <h1 className="text-xl font-semibold text-zinc-900">{campaign.name}</h1>
+            <h1 className={pageTitleClass}>{campaign.name}</h1>
             <Badge tone={campaign.active ? 'success' : 'neutral'}>
               {campaign.active ? 'Active' : 'Stopped'}
             </Badge>
             <Badge tone={statusTone(campaign.trackingMode)}>{campaign.trackingMode}</Badge>
           </div>
-          <p className="text-sm text-zinc-500 capitalize mt-1">
+          <p className={`text-sm ${mutedTextClass} capitalize mt-1`}>
             {campaign.trafficSourceProfile?.name || campaign.trafficSource} · {campaign.slug}
           </p>
         </div>
@@ -181,7 +202,7 @@ export default function CampaignDetailPage() {
                 setCampaign(updated);
                 setForm(toForm(updated));
               } catch (err) {
-                toast.error(String(err));
+                toast.error(formatApiError(err));
               }
             }}
           >
@@ -206,43 +227,42 @@ export default function CampaignDetailPage() {
 
       <Card className="mb-6">
       <form onSubmit={saveCampaign} className="grid gap-4">
-        <h2 className="font-semibold">Edit campaign</h2>
+        <h2 className={sectionHeadingClass}>Edit campaign</h2>
 
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="text-xs text-gray-500 block mb-1">Name</label>
-            <input
+            <Label>Name</Label>
+            <Input
               value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
-              className="border rounded px-3 py-2 w-full"
               required
             />
           </div>
           <div>
-            <label className="text-xs text-gray-500 block mb-1">Slug</label>
-            <input
+            <Label>Slug</Label>
+            <Input
               value={form.slug}
               onChange={(e) => setForm({ ...form, slug: e.target.value })}
-              className="border rounded px-3 py-2 w-full font-mono text-sm"
+              className="font-mono text-sm"
               required
             />
           </div>
         </div>
 
         <div>
-          <label className="text-xs text-gray-500 block mb-1">External ID (Voluum UUID path)</label>
-          <input
+          <Label>External ID (Voluum UUID path)</Label>
+          <Input
             value={form.externalId}
             onChange={(e) => setForm({ ...form, externalId: e.target.value })}
-            className="border rounded px-3 py-2 w-full font-mono text-sm"
+            className="font-mono text-sm"
             placeholder="8d92ac23-ca85-497e-87c4-44ddd2ade345"
           />
         </div>
 
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="text-xs text-gray-500 block mb-1">Traffic source profile</label>
-            <select
+            <Label>Traffic source profile</Label>
+            <Select
               value={form.trafficSourceProfileId}
               onChange={(e) => {
                 const profile = profiles.find((p) => p.id === e.target.value);
@@ -252,51 +272,45 @@ export default function CampaignDetailPage() {
                   trackingMode: profile?.trackingModeDefault || form.trackingMode,
                 });
               }}
-              className="border rounded px-3 py-2 w-full"
             >
               {profiles.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.name}
                 </option>
               ))}
-            </select>
-            <Link
+            </Select>
+            <InlineLink
               href={`/traffic-sources/${campaign.trafficSourceProfileId || ''}`}
-              className="text-xs text-indigo-600 hover:underline mt-1 inline-block"
+              className="text-xs mt-1 inline-block"
             >
               Edit profile →
-            </Link>
+            </InlineLink>
           </div>
           <div>
-            <label className="text-xs text-gray-500 block mb-1">Tracking mode</label>
-            <select
+            <Label>Tracking mode</Label>
+            <Select
               value={form.trackingMode}
               onChange={(e) =>
                 setForm({ ...form, trackingMode: e.target.value as 'redirect' | 'direct' })
               }
-              className="border rounded px-3 py-2 w-full"
             >
               <option value="redirect">Redirect (native — Mediago/Outbrain)</option>
               <option value="direct">Direct LP (Facebook/Google)</option>
-            </select>
+            </Select>
           </div>
         </div>
 
-        <label className="flex items-center gap-2">
-          <input
-            type="checkbox"
-            checked={form.active}
-            onChange={(e) => setForm({ ...form, active: e.target.checked })}
-          />
-          <span className="text-sm">Active — accepts new clicks/visits</span>
-        </label>
+        <Checkbox
+          label="Active — accepts new clicks/visits"
+          checked={form.active}
+          onChange={(checked) => setForm({ ...form, active: checked })}
+        />
 
         <div>
-          <label className="text-xs text-gray-500 block mb-1">Tracking domain</label>
-          <select
+          <Label>Tracking domain</Label>
+          <Select
             value={form.domainId}
             onChange={(e) => setForm({ ...form, domainId: e.target.value })}
-            className="border rounded px-3 py-2 w-full"
           >
             <option value="">Default tracker URL</option>
             {domains
@@ -306,88 +320,78 @@ export default function CampaignDetailPage() {
                   {d.hostname}
                 </option>
               ))}
-          </select>
+          </Select>
         </div>
 
         <div>
-          <label className="text-xs text-gray-500 block mb-1">Destination URL (landing page)</label>
-          <input
+          <Label>Destination URL (landing page)</Label>
+          <Input
             value={form.destinationUrl}
             onChange={(e) => setForm({ ...form, destinationUrl: e.target.value })}
-            className="border rounded px-3 py-2 w-full"
             required
           />
         </div>
 
         <div className="grid grid-cols-3 gap-4">
           <div>
-            <label className="text-xs text-gray-500 block mb-1">Lander name</label>
-            <input
+            <Label>Lander name</Label>
+            <Input
               value={form.landerName}
               onChange={(e) => setForm({ ...form, landerName: e.target.value })}
-              className="border rounded px-3 py-2 w-full"
             />
           </div>
           <div>
-            <label className="text-xs text-gray-500 block mb-1">Offer name</label>
-            <input
+            <Label>Offer name</Label>
+            <Input
               value={form.offerName}
               onChange={(e) => setForm({ ...form, offerName: e.target.value })}
-              className="border rounded px-3 py-2 w-full"
             />
           </div>
           <div>
-            <label className="text-xs text-gray-500 block mb-1">Workspace name</label>
-            <input
+            <Label>Workspace name</Label>
+            <Input
               value={form.workspaceName}
               onChange={(e) => setForm({ ...form, workspaceName: e.target.value })}
-              className="border rounded px-3 py-2 w-full"
             />
           </div>
         </div>
 
-        <button
-          type="submit"
-          disabled={saving}
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 w-fit"
-        >
+        <Button type="submit" disabled={saving} className="w-fit">
           {saving ? 'Saving...' : 'Save campaign'}
-        </button>
+        </Button>
       </form>
       </Card>
 
       <Card className="mb-6">
-        <h2 className="text-sm font-semibold text-zinc-900 mb-3">
+        <h2 className={`${sectionHeadingClass} mb-3`}>
           {campaign.trackingMode === 'direct' ? 'Direct Ad URL' : 'Redirect Click URL'}
         </h2>
         {campaign.setupNote && (
-          <p className="text-sm text-indigo-800 bg-indigo-50 border border-indigo-100 rounded-lg p-3 mb-3">
-            {campaign.setupNote}
-          </p>
+          <div className="mb-3">
+            <Alert tone="info">{campaign.setupNote}</Alert>
+          </div>
         )}
         <CodeBlock>{campaign.trackingTemplate}</CodeBlock>
       </Card>
 
       {campaign.paramMappings && campaign.paramMappings.length > 0 && (
         <Card className="mb-6">
-          <h2 className="text-sm font-semibold text-zinc-900 mb-3">Param mapping (inherited)</h2>
+          <h2 className={`${sectionHeadingClass} mb-3`}>Param mapping (inherited)</h2>
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
-              <thead>
-                <tr className="text-left text-zinc-400 border-b">
-                  <th className="py-2 pr-4">Display</th>
-                  <th className="py-2 pr-4">Internal</th>
-                  <th className="py-2 pr-4">External keys</th>
-                  <th className="py-2">In reports</th>
-                </tr>
-              </thead>
+              <TableHead>
+                <Th>Display</Th>
+                <Th>Internal</Th>
+                <Th>External keys</Th>
+                <Th>In reports</Th>
+              </TableHead>
               <tbody>
                 {campaign.paramMappings.map((m) => (
-                  <tr key={m.internalField} className="border-b border-zinc-50">
-                    <td className="py-2 pr-4">{m.displayLabel}</td>
-                    <td className="py-2 pr-4 font-mono text-zinc-500">{m.internalField}</td>
-                    <td className="py-2 pr-4 font-mono">{m.externalKeys.join(', ')}</td>
-                    <td className="py-2">{m.showInReports ? 'Yes' : '—'}</td>
+                  <tr key={m.internalField} className={tableRowClass}>
+                    <td className="py-2 px-5">{m.displayLabel}</td>
+                    <td className={`py-2 px-5 font-mono ${mutedTextClass}`}>{m.internalField}</td>
+                    <td className="py-2 px-5 font-mono">{m.externalKeys.join(', ')}</td>
+                    <td className="py-2 px-5">{m.showInReports ? 'Yes' : '—'}</td>
                   </tr>
                 ))}
               </tbody>
@@ -397,16 +401,16 @@ export default function CampaignDetailPage() {
       )}
 
       <Card className="mb-6">
-        <h2 className="text-sm font-semibold text-zinc-900 mb-3">LP Script</h2>
+        <h2 className={`${sectionHeadingClass} mb-3`}>LP Script</h2>
         <CodeBlock>{campaign.lpScriptSnippet || ''}</CodeBlock>
       </Card>
 
       <Card className="mb-6">
-        <h2 className="text-sm font-semibold text-zinc-900 mb-3">
+        <h2 className={`${sectionHeadingClass} mb-3`}>
           Incoming conversion URL (tell your LP / CRM)
         </h2>
         {campaign.domain && (
-          <p className="text-xs text-zinc-500 mb-3">
+          <p className={`text-xs ${mutedTextClass} mb-3`}>
             Tracking domain: <span className="font-mono">{campaign.domain.hostname}</span> — this
             campaign&apos;s unique conversion endpoint.
           </p>
@@ -421,66 +425,63 @@ export default function CampaignDetailPage() {
       </Card>
 
       <Card className="mb-6">
-        <h2 className="text-sm font-semibold text-zinc-900 mb-3">Outbound conversion (what we send)</h2>
+        <h2 className={`${sectionHeadingClass} mb-3`}>Outbound conversion (what we send)</h2>
         <PostbackPreview
           conversionMethod={campaign.conversionMethod}
           postback={postback}
         />
-        <p className="text-xs text-zinc-400 mt-4">
+        <p className={`text-xs ${mutedTextClass} mt-4`}>
           After a real conversion, expand it on the <strong>Conversions</strong> page to see the exact
           URL/body sent and Mediago/Facebook/Google response.
         </p>
       </Card>
 
       <Card>
-        <h2 className="font-semibold mb-4">Postback Configuration</h2>
+        <h2 className={`${sectionHeadingClass} mb-4`}>Postback Configuration</h2>
 
-        <p className="text-sm text-zinc-500 mb-4">
+        <p className={`text-sm ${mutedTextClass} mb-4`}>
           Conversion method:{' '}
-          <span className="font-medium text-zinc-800">
+          <span className={`font-medium ${bodyTextClass}`}>
             {(campaign.conversionMethod || 'mediago_s2s').replace(/_/g, ' ')}
           </span>
         </p>
 
         <div className="space-y-4">
           {(campaign.conversionMethod === 'mediago_s2s' || !campaign.conversionMethod) && (
-          <fieldset className="border rounded p-4">
-            <legend className="px-2 text-sm font-medium">Mediago S2S</legend>
-            <label className="flex items-center gap-2 mb-2">
-              <input
-                type="checkbox"
-                checked={postback.mediagoEnabled ?? true}
-                onChange={(e) => setPostback({ ...postback, mediagoEnabled: e.target.checked })}
-              />
-              Enabled
-            </label>
-            <label className="text-xs text-zinc-500 block mb-1">
-              Mediago account name (<code>accountname</code>) — required for Mediago test dashboard
-            </label>
-            <input
+          <fieldset className="border border-zinc-200 dark:border-zinc-700 rounded-xl p-4">
+            <legend className={`px-2 text-sm font-medium ${bodyTextClass}`}>Mediago S2S</legend>
+            <Checkbox
+              label="Enabled"
+              checked={postback.mediagoEnabled ?? true}
+              onChange={(checked) => setPostback({ ...postback, mediagoEnabled: checked })}
+              className="mb-2"
+            />
+            <Label>
+              Mediago account name (<code className={inlineCodeClass}>accountname</code>) — required for Mediago test dashboard
+            </Label>
+            <Input
               type="text"
               placeholder="my_account_name (from Mediago dashboard)"
               value={postback.mediagoAccountName ?? ''}
               onChange={(e) =>
                 setPostback({ ...postback, mediagoAccountName: e.target.value })
               }
-              className="border rounded px-3 py-2 w-full mb-3"
+              className="mb-3"
             />
-            <label className="text-xs text-zinc-500 block mb-1">
+            <Label>
               Fallback conversion type (used only when event type is unknown)
-            </label>
-            <input
+            </Label>
+            <Input
               type="number"
               placeholder="Fallback (10 = Lead)"
               value={postback.mediagoConversionType ?? 10}
               onChange={(e) =>
                 setPostback({ ...postback, mediagoConversionType: parseInt(e.target.value, 10) })
               }
-              className="border rounded px-3 py-2 w-full"
             />
-            <p className="text-xs text-zinc-400 mt-2">
+            <p className={`text-xs ${mutedTextClass} mt-2`}>
               Postback format:{' '}
-              <code className="bg-zinc-100 px-1 text-[10px]">
+              <code className={inlineCodeClass}>
                 trackingid=TRACKING_ID&amp;adid=AD_ID&amp;conversiontype=1&amp;accountname=…
               </code>
             </p>
@@ -494,59 +495,53 @@ export default function CampaignDetailPage() {
           )}
 
           {campaign.conversionMethod === 'facebook_capi' && (
-          <fieldset className="border rounded p-4">
-            <legend className="px-2 text-sm font-medium">Facebook CAPI</legend>
-            <label className="flex items-center gap-2 mb-2">
-              <input
-                type="checkbox"
-                checked={postback.facebookEnabled ?? false}
-                onChange={(e) => setPostback({ ...postback, facebookEnabled: e.target.checked })}
-              />
-              Enabled
-            </label>
-            <input
+          <fieldset className="border border-zinc-200 dark:border-zinc-700 rounded-xl p-4">
+            <legend className={`px-2 text-sm font-medium ${bodyTextClass}`}>Facebook CAPI</legend>
+            <Checkbox
+              label="Enabled"
+              checked={postback.facebookEnabled ?? false}
+              onChange={(checked) => setPostback({ ...postback, facebookEnabled: checked })}
+              className="mb-2"
+            />
+            <Input
               placeholder="Pixel ID"
               value={postback.facebookPixelId || ''}
               onChange={(e) => setPostback({ ...postback, facebookPixelId: e.target.value })}
-              className="border rounded px-3 py-2 w-full mb-2"
+              className="mb-2"
             />
-            <input
+            <Input
               placeholder="Access Token"
               value={postback.facebookAccessToken || ''}
               onChange={(e) => setPostback({ ...postback, facebookAccessToken: e.target.value })}
-              className="border rounded px-3 py-2 w-full"
             />
           </fieldset>
           )}
 
           {campaign.conversionMethod === 'google_offline' && (
-          <fieldset className="border rounded p-4">
-            <legend className="px-2 text-sm font-medium">Google</legend>
-            <label className="flex items-center gap-2 mb-2">
-              <input
-                type="checkbox"
-                checked={postback.googleEnabled ?? false}
-                onChange={(e) => setPostback({ ...postback, googleEnabled: e.target.checked })}
-              />
-              Enabled
-            </label>
-            <input
+          <fieldset className="border border-zinc-200 dark:border-zinc-700 rounded-xl p-4">
+            <legend className={`px-2 text-sm font-medium ${bodyTextClass}`}>Google</legend>
+            <Checkbox
+              label="Enabled"
+              checked={postback.googleEnabled ?? false}
+              onChange={(checked) => setPostback({ ...postback, googleEnabled: checked })}
+              className="mb-2"
+            />
+            <Input
               placeholder="Conversion ID"
               value={postback.googleConversionId || ''}
               onChange={(e) => setPostback({ ...postback, googleConversionId: e.target.value })}
-              className="border rounded px-3 py-2 w-full mb-2"
+              className="mb-2"
             />
-            <input
+            <Input
               placeholder="Conversion Label"
               value={postback.googleConversionLabel || ''}
               onChange={(e) => setPostback({ ...postback, googleConversionLabel: e.target.value })}
-              className="border rounded px-3 py-2 w-full mb-2"
+              className="mb-2"
             />
-            <input
+            <Input
               placeholder="Custom postback URL (optional)"
               value={postback.googlePostbackUrl || ''}
               onChange={(e) => setPostback({ ...postback, googlePostbackUrl: e.target.value })}
-              className="border rounded px-3 py-2 w-full"
             />
           </fieldset>
           )}
@@ -558,7 +553,7 @@ export default function CampaignDetailPage() {
       </Card>
 
       <Card className="mt-6">
-        <h2 className="text-lg font-semibold mb-4">Budget & targets</h2>
+        <h2 className={`text-lg font-semibold text-zinc-900 dark:text-zinc-50 mb-4`}>Budget & targets</h2>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
           <div>
             <Label>Daily budget ($)</Label>

@@ -1,7 +1,8 @@
 'use client';
 
-import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import {
+  Alert,
   Badge,
   Button,
   DataTable,
@@ -15,11 +16,16 @@ import {
   TableHead,
   Td,
   Th,
+  bodyTextClass,
+  detailRowClass,
+  mutedTextClass,
+  tableRowClass,
 } from '@/components/ui';
 import { DateRangePicker, buildPresets, type DateRange } from '@/components/DateRangePicker';
 import { ExcludeBotsToggle } from '@/components/ExcludeBotsToggle';
 import {
   trackerApi,
+  formatApiError,
   type Click,
   type Campaign,
   type VisitBreakdownDimension,
@@ -81,6 +87,7 @@ export default function ClicksPage() {
   const [summary, setSummary] = useState<VisitSummary | null>(null);
   const [breakdown, setBreakdown] = useState<VisitBreakdownRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
   const [excludeBots, setExcludeBots] = useState(false);
@@ -104,7 +111,13 @@ export default function ClicksPage() {
     return params;
   }, [range, filters, excludeBots]);
 
-  const load = useCallback(() => {
+  useEffect(() => {
+    trackerApi.getCampaigns().then(setCampaigns).catch(console.error);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
     setLoading(true);
     const listParams = { ...queryParams, limit: '100' };
 
@@ -114,35 +127,25 @@ export default function ClicksPage() {
       viewMode === 'log' ? trackerApi.getClicks(listParams) : Promise.resolve(null),
     ])
       .then(([sum, rows, clickRes]) => {
+        if (cancelled) return;
         setSummary(sum);
         setBreakdown(rows);
         if (clickRes) {
           setClicks(clickRes.items);
           setTotal(clickRes.total);
         }
+        setError(null);
       })
-      .catch(console.error)
-      .finally(() => setLoading(false));
+      .catch((err) => {
+        console.error(err);
+        if (!cancelled) setError(formatApiError(err));
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => { cancelled = true; };
   }, [queryParams, dimension, viewMode]);
-
-  useEffect(() => {
-    trackerApi.getCampaigns().then(setCampaigns).catch(console.error);
-  }, []);
-
-  useEffect(() => {
-    load();
-  }, [load]);
-
-  useEffect(() => {
-    if (viewMode !== 'log') return;
-    trackerApi
-      .getClicks({ ...queryParams, limit: '100' })
-      .then((res) => {
-        setClicks(res.items);
-        setTotal(res.total);
-      })
-      .catch(console.error);
-  }, [viewMode, queryParams]);
 
   const sortedBreakdown = useMemo(() => {
     const rows = [...breakdown];
@@ -232,6 +235,12 @@ export default function ClicksPage() {
         <DateRangePicker value={range} onChange={setRange} />
         <ExcludeBotsToggle value={excludeBots} onChange={setExcludeBots} />
       </div>
+
+      {error && (
+        <div className="mb-4">
+          <Alert tone="error">{error}</Alert>
+        </div>
+      )}
 
       {summary && (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
@@ -350,7 +359,7 @@ export default function ClicksPage() {
       ) : viewMode === 'performance' ? (
         <>
           <div className="flex flex-wrap items-center gap-2 mb-3">
-            <span className="text-xs text-zinc-500">Group by</span>
+            <span className={`text-xs ${mutedTextClass}`}>Group by</span>
             {DIMENSIONS.map((d) => (
               <Button
                 key={d.id}
@@ -397,7 +406,7 @@ export default function ClicksPage() {
                 {sortedBreakdown.map((row) => (
                   <tr
                     key={row.key}
-                    className="border-b border-zinc-50 hover:bg-zinc-50/50 cursor-pointer"
+                    className={`${tableRowClass} cursor-pointer`}
                     onClick={() => drillIntoRow(row)}
                     title="Click to filter visit log"
                   >
@@ -451,7 +460,7 @@ export default function ClicksPage() {
                 return (
                   <Fragment key={c.id}>
                     <tr
-                      className="border-b border-zinc-50 hover:bg-zinc-50/50 cursor-pointer"
+                      className={`${tableRowClass} cursor-pointer`}
                       onClick={() => setExpanded(isExpanded ? null : c.id)}
                     >
                       <Td>
@@ -472,7 +481,7 @@ export default function ClicksPage() {
                         {c.converted ? (
                           <Badge tone="success">Yes</Badge>
                         ) : (
-                          <span className="text-zinc-300">No</span>
+                          <span className={mutedTextClass}>No</span>
                         )}
                       </Td>
                       <Td className="font-mono">{c.clickId}</Td>
@@ -492,7 +501,7 @@ export default function ClicksPage() {
                       </Td>
                     </tr>
                     {isExpanded && (
-                      <tr className="bg-zinc-50/80 border-b border-zinc-100">
+                      <tr className={detailRowClass}>
                         <td colSpan={11} className="px-5 py-4">
                           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
                             {(c.reportFields?.length
@@ -514,8 +523,8 @@ export default function ClicksPage() {
                             <Detail label="ISP" value={c.isp} />
                             <Detail label="Bot reasons" value={(c.botReasons || []).join(', ')} />
                             <div className="col-span-full">
-                              <span className="text-zinc-400">UA: </span>
-                              <span className="text-zinc-700 break-all">{c.userAgent || '—'}</span>
+                              <span className={mutedTextClass}>UA: </span>
+                              <span className={`${bodyTextClass} break-all`}>{c.userAgent || '—'}</span>
                             </div>
                           </div>
                         </td>
@@ -530,7 +539,7 @@ export default function ClicksPage() {
             <EmptyState title="No visits match filters" description="Try widening the date range or clearing filters." />
           )}
           {total > clicks.length && (
-            <p className="text-xs text-zinc-400 px-5 py-3">
+            <p className={`text-xs ${mutedTextClass} px-5 py-3`}>
               Showing {clicks.length} of {total} visits. Narrow filters to inspect specific traffic.
             </p>
           )}
@@ -555,7 +564,7 @@ function SortHeader({
 }) {
   const indicator = active === sortKey ? (dir === 'desc' ? ' ↓' : ' ↑') : '';
   return (
-    <button type="button" className="cursor-pointer hover:text-zinc-600" onClick={() => onSort(sortKey)}>
+    <button type="button" className={`cursor-pointer hover:text-zinc-600 dark:hover:text-zinc-300`} onClick={() => onSort(sortKey)}>
       {label}
       {indicator}
     </button>
@@ -565,8 +574,8 @@ function SortHeader({
 function Detail({ label, value }: { label: string; value?: string | null }) {
   return (
     <div>
-      <span className="text-zinc-400">{label}: </span>
-      <span className="text-zinc-800">{value || '—'}</span>
+      <span className={mutedTextClass}>{label}: </span>
+      <span className={bodyTextClass}>{value || '—'}</span>
     </div>
   );
 }

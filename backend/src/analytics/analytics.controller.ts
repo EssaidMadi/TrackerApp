@@ -30,18 +30,11 @@ export class AnalyticsController {
     @Query('to') to?: string,
     @Query('excludeBots') excludeBots?: string,
   ) {
+    const exclude = excludeBots === 'true';
     if (campaignId) {
-      return this.analytics.getOverview(campaignId, from, to);
+      return this.analytics.getOverview(campaignId, from, to, exclude);
     }
-    const rollup = await this.campaignReport.getGlobalRollup(from, to, excludeBots === 'true');
-    const visitStats = await this.analytics.getOverview(undefined, from, to);
-    return {
-      ...rollup,
-      uniqueVisits: visitStats.uniqueVisits,
-      newVisitors: visitStats.newVisitors,
-      returningVisitors: visitStats.returningVisitors,
-      sentConversions: visitStats.sentConversions,
-    };
+    return this.campaignReport.getGlobalRollup(from, to, exclude);
   }
 
   @Get('campaigns')

@@ -3,9 +3,10 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useToast } from '@/components/Toast';
 import {
+  Alert,
   Badge,
   Button,
-  Card,
+  Checkbox,
   DataTable,
   EmptyState,
   FilterBar,
@@ -16,11 +17,13 @@ import {
   TableHead,
   Td,
   Th,
+  tableRowClass,
 } from '@/components/ui';
 import { DateRangePicker, buildPresets, type DateRange } from '@/components/DateRangePicker';
 import { ExcludeBotsToggle } from '@/components/ExcludeBotsToggle';
 import {
   trackerApi,
+  formatApiError,
   type Campaign,
   type PlacementReport,
   type PlacementRow,
@@ -38,6 +41,7 @@ export default function PlacementsPage() {
   const [report, setReport] = useState<PlacementReport | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const params = {
     from: range.from,
@@ -53,8 +57,14 @@ export default function PlacementsPage() {
     setLoading(true);
     trackerApi
       .getPlacements(params)
-      .then(setReport)
-      .catch(console.error)
+      .then((data) => {
+        setReport(data);
+        setError(null);
+      })
+      .catch((err) => {
+        console.error(err);
+        setError(formatApiError(err));
+      })
       .finally(() => setLoading(false));
   }, [range, campaignId, dimension, excludeBots]);
 
@@ -78,16 +88,20 @@ export default function PlacementsPage() {
   const addToBlocklist = async () => {
     const rows = report?.rows.filter((r) => selected.has(r.key)) || [];
     if (rows.length === 0) return;
-    await trackerApi.createBlockedPlacements(
-      rows.map((r) => ({
-        campaignId: campaignId || undefined,
-        dimension,
-        value: r.label,
-        reason: `Kill verdict: $${r.spend.toFixed(2)} spend, ${r.events} events`,
-      })),
-    );
-    setSelected(new Set());
-    toast.success(`Added ${rows.length} placement(s) to blocklist`);
+    try {
+      await trackerApi.createBlockedPlacements(
+        rows.map((r) => ({
+          campaignId: campaignId || undefined,
+          dimension,
+          value: r.label,
+          reason: `Kill verdict: $${r.spend.toFixed(2)} spend, ${r.events} events`,
+        })),
+      );
+      setSelected(new Set());
+      toast.success(`Added ${rows.length} placement(s) to blocklist`);
+    } catch (err) {
+      toast.error(formatApiError(err));
+    }
   };
 
   const copyBlocklist = async () => {
@@ -113,6 +127,12 @@ export default function PlacementsPage() {
         <DateRangePicker value={range} onChange={setRange} />
         <ExcludeBotsToggle value={excludeBots} onChange={setExcludeBots} />
       </div>
+
+      {error && (
+        <div className="mb-6">
+          <Alert tone="error">{error}</Alert>
+        </div>
+      )}
 
       <FilterBar>
         <Select value={campaignId} onChange={(e) => setCampaignId(e.target.value)} className="min-w-[200px]">
@@ -157,9 +177,12 @@ export default function PlacementsPage() {
           </TableHead>
           <tbody>
             {report?.rows.map((r: PlacementRow) => (
-              <tr key={r.key} className="border-b border-zinc-50 hover:bg-zinc-50/50">
+              <tr key={r.key} className={tableRowClass}>
                 <Td>
-                  <input type="checkbox" checked={selected.has(r.key)} onChange={() => toggle(r.key)} />
+                  <Checkbox
+                    checked={selected.has(r.key)}
+                    onChange={() => toggle(r.key)}
+                  />
                 </Td>
                 <Td className="font-mono max-w-[160px] truncate">
                   <span title={r.label}>{r.label}</span>
@@ -169,7 +192,7 @@ export default function PlacementsPage() {
                 <Td>{r.cr}%</Td>
                 <Td>${r.spend.toFixed(2)}</Td>
                 <Td>{r.events > 0 ? `$${r.cpa.toFixed(2)}` : '—'}</Td>
-                <Td className={r.roi < 0 ? 'text-red-600' : ''}>{r.roi.toFixed(1)}%</Td>
+                <Td className={r.roi < 0 ? 'text-red-600 dark:text-red-400' : ''}>{r.roi.toFixed(1)}%</Td>
                 <Td>{r.botPct}%</Td>
                 <Td>
                   <Badge tone={VERDICT_TONE[r.verdict]}>{r.verdict}</Badge>

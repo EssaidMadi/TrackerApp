@@ -3,6 +3,7 @@
 import { Fragment, useEffect, useState } from 'react';
 import { useToast } from '@/components/Toast';
 import {
+  Alert,
   Badge,
   Button,
   DataTable,
@@ -13,24 +14,35 @@ import {
   Td,
   Th,
   statusTone,
+  bodyTextClass,
+  detailRowClass,
+  linkClass,
+  mutedTextClass,
+  tableRowClass,
 } from '@/components/ui';
-import { trackerApi, type Conversion } from '@/lib/api';
+import { trackerApi, formatApiError, type Conversion } from '@/lib/api';
 
 export default function ConversionsPage() {
   const toast = useToast();
   const [conversions, setConversions] = useState<Conversion[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
 
   const load = () => {
+    setLoading(true);
     trackerApi
       .getConversions({ limit: '100' })
       .then((res) => {
         setConversions(res.items);
         setTotal(res.total);
+        setError(null);
       })
-      .catch(console.error)
+      .catch((err) => {
+        console.error(err);
+        setError(formatApiError(err));
+      })
       .finally(() => setLoading(false));
   };
 
@@ -43,7 +55,7 @@ export default function ConversionsPage() {
       await trackerApi.retryConversion(id);
       load();
     } catch (err) {
-      toast.error(String(err));
+      toast.error(formatApiError(err));
     }
   };
 
@@ -69,7 +81,7 @@ export default function ConversionsPage() {
                 a.click();
                 URL.revokeObjectURL(url);
               } catch (err) {
-                toast.error(String(err));
+                toast.error(formatApiError(err));
               }
             }}
           >
@@ -77,6 +89,12 @@ export default function ConversionsPage() {
           </Button>
         }
       />
+
+      {error && (
+        <div className="mb-6">
+          <Alert tone="error">{error}</Alert>
+        </div>
+      )}
 
       <DataTable>
         <table className="w-full text-xs">
@@ -98,13 +116,13 @@ export default function ConversionsPage() {
               return (
                 <Fragment key={c.id}>
                   <tr
-                    className="border-b border-zinc-50 hover:bg-zinc-50/50 cursor-pointer"
+                    className={`${tableRowClass} cursor-pointer`}
                     onClick={() => setExpanded(isExpanded ? null : c.id)}
                   >
-                    <Td className="text-zinc-400 whitespace-nowrap">
+                    <Td className={`${mutedTextClass} whitespace-nowrap`}>
                       {click ? new Date(click.createdAt).toLocaleString() : '—'}
                     </Td>
-                    <Td className="text-zinc-400 whitespace-nowrap">
+                    <Td className={`${mutedTextClass} whitespace-nowrap`}>
                       {new Date(c.createdAt).toLocaleString()}
                     </Td>
                     <Td className="font-mono">{c.clickId}</Td>
@@ -122,7 +140,7 @@ export default function ConversionsPage() {
                             e.stopPropagation();
                             handleRetry(c.id);
                           }}
-                          className="text-indigo-600 hover:underline text-xs font-medium"
+                          className={`${linkClass} text-xs font-medium`}
                         >
                           Retry
                         </button>
@@ -130,7 +148,7 @@ export default function ConversionsPage() {
                     </Td>
                   </tr>
                   {isExpanded && click && (
-                    <tr className="bg-zinc-50/80 border-b border-zinc-100">
+                    <tr className={detailRowClass}>
                       <td colSpan={9} className="px-5 py-4">
                         <div className="grid grid-cols-4 gap-3 text-xs">
                           {(click.reportFields?.length
@@ -172,30 +190,30 @@ export default function ConversionsPage() {
                           <Detail label="CV7 (Platform)" value={click.customVariable7} />
                           <Detail label="CV8 (Asset)" value={click.customVariable8} />
                           <div className="col-span-4">
-                            <span className="text-gray-400">User Agent: </span>
-                            <span className="text-gray-800 break-all">{click.userAgent || '-'}</span>
+                            <span className={mutedTextClass}>User Agent: </span>
+                            <span className={`${bodyTextClass} break-all`}>{click.userAgent || '-'}</span>
                           </div>
                           <div className="col-span-4 space-y-2">
-                            <span className="text-gray-500 font-medium">Outbound postbacks sent:</span>
+                            <span className={`${bodyTextClass} font-medium`}>Outbound postbacks sent:</span>
                             {c.postbackLogs.length === 0 ? (
-                              <span className="text-zinc-400">None (skipped or pending)</span>
+                              <span className={mutedTextClass}>None (skipped or pending)</span>
                             ) : (
                               c.postbackLogs.map((log) => (
                                 <div
                                   key={log.id}
-                                  className="border border-zinc-200 rounded p-2 bg-white"
+                                  className="border border-zinc-200 dark:border-zinc-700 rounded p-2 bg-white dark:bg-zinc-900"
                                 >
                                   <div className="flex items-center gap-2 mb-1">
                                     <Badge tone={log.success ? 'success' : 'danger'}>
                                       {log.network} HTTP {log.httpStatus || '?'}
                                     </Badge>
-                                    <span className="text-zinc-400">{log.method}</span>
+                                    <span className={mutedTextClass}>{log.method}</span>
                                   </div>
-                                  <div className="font-mono text-[10px] break-all text-zinc-700">
+                                  <div className={`font-mono text-[10px] break-all ${bodyTextClass}`}>
                                     {log.url || '(no url)'}
                                   </div>
                                   {log.response && (
-                                    <div className="text-[10px] text-zinc-500 mt-1 break-all">
+                                    <div className={`text-[10px] ${mutedTextClass} mt-1 break-all`}>
                                       Response: {log.response.slice(0, 300)}
                                     </div>
                                   )}
@@ -226,8 +244,8 @@ export default function ConversionsPage() {
 function Detail({ label, value }: { label: string; value?: string | null }) {
   return (
     <div>
-      <span className="text-gray-400">{label}: </span>
-      <span className="text-gray-800">{value || '-'}</span>
+      <span className={mutedTextClass}>{label}: </span>
+      <span className={bodyTextClass}>{value || '-'}</span>
     </div>
   );
 }

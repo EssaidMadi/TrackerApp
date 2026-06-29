@@ -1,4 +1,4 @@
-import { CodeBlock } from '@/components/ui';
+import { Alert, CodeBlock, bodyTextClass, inlineCodeClass, mutedTextClass, sectionHeadingClass } from '@/components/ui';
 
 type Props = {
   trackerBaseUrl?: string;
@@ -24,37 +24,37 @@ export function IncomingConversionGuide({
     `${trackerBaseUrl || 'https://track.your-domain.com'}/postback?cid=${exampleClickId}&et=lead&payout=25&txid=TX-001`;
 
   return (
-    <div className="space-y-4 text-sm text-zinc-600">
+    <div className={`space-y-4 text-sm ${bodyTextClass}`}>
       <p>
         When a lead converts on your landing page, you must tell the tracker using the{' '}
         <strong>internal click ID</strong> from the visit — the same value in{' '}
-        <code className="bg-zinc-100 px-1 text-xs">click_id</code> and{' '}
-        <code className="bg-zinc-100 px-1 text-xs">tk-cid</code> on the LP URL. They are identical.
+        <code className={inlineCodeClass}>click_id</code> and{' '}
+        <code className={inlineCodeClass}>tk-cid</code> on the LP URL. They are identical.
       </p>
 
-      <div className="bg-amber-50 border border-amber-100 rounded-lg p-3 text-xs text-amber-900">
+      <Alert tone="warning">
         <strong>Do not confuse:</strong> Mediago&apos;s ad{' '}
-        <code className="bg-amber-100 px-1">click_id</code> macro ({'{TRACKING_ID}'}) is the network
+        <code className={inlineCodeClass}>click_id</code> macro ({'{TRACKING_ID}'}) is the network
         ID — stored as <em>tracking ID</em>. For conversion postback use our ID from the LP (
-        <code className="bg-amber-100 px-1">d…</code> prefix), unless you only have the network ID
-        and use <code className="bg-amber-100 px-1">tracking_id=</code> instead of{' '}
-        <code className="bg-amber-100 px-1">cid=</code>.
-      </div>
+        <code className={inlineCodeClass}>d…</code> prefix), unless you only have the network ID
+        and use <code className={inlineCodeClass}>tracking_id=</code> instead of{' '}
+        <code className={inlineCodeClass}>cid=</code>.
+      </Alert>
 
       <div>
-        <h4 className="text-xs font-semibold text-zinc-800 mb-2">
+        <h4 className={`${sectionHeadingClass} mb-2`}>
           Option A — GET postback URL (CRM, webhook, server-side)
         </h4>
-        <p className="text-xs text-zinc-500 mb-2">
+        <p className={`text-xs ${mutedTextClass} mb-2`}>
           Each campaign uses its tracking domain. Paste this template in your LP backend / Zapier /
           form handler. Replace placeholders when the lead converts.
         </p>
         <CodeBlock>{incomingConversionUrl || exampleUrl}</CodeBlock>
-        <p className="text-xs text-zinc-400 mt-2">Example with a real click ID:</p>
+        <p className={`text-xs ${mutedTextClass} mt-2`}>Example with a real click ID:</p>
         <CodeBlock>{exampleUrl}</CodeBlock>
         {incomingConversionUrlAlt && (
           <>
-            <p className="text-xs text-zinc-400 mt-2">Alternative (click ID in path):</p>
+            <p className={`text-xs ${mutedTextClass} mt-2`}>Alternative (click ID in path):</p>
             <CodeBlock>
               {incomingConversionUrlAlt
                 .replace('{click_id}', exampleClickId)
@@ -65,8 +65,8 @@ export function IncomingConversionGuide({
       </div>
 
       <div>
-        <h4 className="text-xs font-semibold text-zinc-800 mb-2">Accepted query parameters</h4>
-        <ul className="text-xs space-y-1 font-mono text-zinc-700">
+        <h4 className={`${sectionHeadingClass} mb-2`}>Accepted query parameters</h4>
+        <ul className={`text-xs space-y-1 font-mono ${bodyTextClass}`}>
           <li>
             <code>cid</code> or <code>click_id</code> or <code>tk-cid</code> — visit click ID
             (required)
@@ -89,10 +89,10 @@ export function IncomingConversionGuide({
 
       {trackingMode === 'direct' && lpScriptSnippet && (
         <div>
-          <h4 className="text-xs font-semibold text-zinc-800 mb-2">
+          <h4 className={`${sectionHeadingClass} mb-2`}>
             Option B — LP script (Facebook / Google direct)
           </h4>
-          <p className="text-xs text-zinc-500 mb-2">
+          <p className={`text-xs ${mutedTextClass} mb-2`}>
             On form submit, call from your LP JavaScript (uses tk-cid cookie automatically):
           </p>
           <CodeBlock>{`// Mediago: View Content fires automatically when utm_source=mediago
@@ -112,9 +112,9 @@ tkCallback.registerConversion({ eventType: 'lead', email: 'user@example.com' });
 
 // Sale / purchase → type 8
 tkCallback.trackPurchase({ payout: 25, transactionId: 'TX-001' });`}</CodeBlock>
-          <p className="text-xs text-zinc-400 mt-2">
-            Sends POST to <code>{trackerBaseUrl}/conversions/track</code> with the visit click ID.
-            Each event type maps to a Mediago <code>conversiontype</code> code on the outbound S2S postback.
+          <p className={`text-xs ${mutedTextClass} mt-2`}>
+            Sends POST to <code className={inlineCodeClass}>{trackerBaseUrl}/conversions/track</code> with the visit click ID.
+            Each event type maps to a Mediago <code className={inlineCodeClass}>conversiontype</code> code on the outbound S2S postback.
           </p>
         </div>
       )}

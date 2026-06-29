@@ -1,4 +1,4 @@
-import { Card } from '@/components/ui';
+import { Card, inlineCodeClass, mutedTextClass, sectionHeadingClass, tableRowClass } from '@/components/ui';
 
 const ROWS = [
   { code: 1, label: 'View Content', events: 'viewcontent' },
@@ -24,19 +24,19 @@ const ROWS = [
 export function MediagoConversionTypeTable({ compact = false }: { compact?: boolean }) {
   return (
     <Card className={compact ? 'p-3' : ''}>
-      <h3 className={`font-semibold text-zinc-900 ${compact ? 'text-sm mb-2' : 'mb-3'}`}>
+      <h3 className={`${sectionHeadingClass} ${compact ? 'text-sm mb-2' : 'mb-3'}`}>
         Mediago conversion type map (Table 1.1)
       </h3>
-      <p className="text-xs text-zinc-500 mb-3">
-        Outbound Mediago postbacks use <code className="bg-zinc-100 px-1">conversiontype=</code> from
-        the event type (<code className="bg-zinc-100 px-1">et=</code> on incoming postbacks). When{' '}
-        <code className="bg-zinc-100 px-1">utm_source=mediago</code>, the LP script auto-fires{' '}
+      <p className={`text-xs ${mutedTextClass} mb-3`}>
+        Outbound Mediago postbacks use <code className={inlineCodeClass}>conversiontype=</code> from
+        the event type (<code className={inlineCodeClass}>et=</code> on incoming postbacks). When{' '}
+        <code className={inlineCodeClass}>utm_source=mediago</code>, the LP script auto-fires{' '}
         <strong>View Content (1)</strong> on page load.
       </p>
       <div className="overflow-x-auto">
         <table className="w-full text-xs">
           <thead>
-            <tr className="text-left text-zinc-400 border-b">
+            <tr className={`text-left ${mutedTextClass} border-b border-zinc-100 dark:border-zinc-800`}>
               <th className="py-1.5 pr-3">Code</th>
               <th className="py-1.5 pr-3">Mediago type</th>
               <th className="py-1.5">Event slugs (et=)</th>
@@ -44,10 +44,10 @@ export function MediagoConversionTypeTable({ compact = false }: { compact?: bool
           </thead>
           <tbody>
             {ROWS.map((r) => (
-              <tr key={r.code} className="border-b border-zinc-50">
+              <tr key={r.code} className={tableRowClass}>
                 <td className="py-1.5 pr-3 font-mono">{r.code}</td>
                 <td className="py-1.5 pr-3">{r.label}</td>
-                <td className="py-1.5 font-mono text-zinc-600">{r.events}</td>
+                <td className={`py-1.5 font-mono ${mutedTextClass}`}>{r.events}</td>
               </tr>
             ))}
           </tbody>

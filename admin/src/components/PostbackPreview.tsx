@@ -1,4 +1,4 @@
-import { CodeBlock } from '@/components/ui';
+import { CodeBlock, bodyTextClass, inlineCodeClass, linkClass, mutedTextClass } from '@/components/ui';
 
 type Props = {
   conversionMethod?: string | null;
@@ -21,10 +21,10 @@ export function PostbackPreview({ conversionMethod, postback }: Props) {
   if (method === 'mediago_s2s') {
     const fallback = postback?.mediagoConversionType ?? 10;
     return (
-      <div className="space-y-3 text-sm text-zinc-600">
+      <div className={`space-y-3 text-sm ${bodyTextClass}`}>
         <p>
           When a conversion is recorded, the tracker sends a <strong>GET</strong> to Mediago. The{' '}
-          <code className="bg-zinc-100 px-1 text-xs">conversiontype</code> is chosen from the event
+          <code className={inlineCodeClass}>conversiontype</code> is chosen from the event
           type (Table 1.1): viewcontent→1, click_button→12, call_connected→14, purchase→8, lead→10.
         </p>
         <CodeBlock>{`GET https://sync.mediago.io/api/bidder/postback
@@ -33,12 +33,12 @@ export function PostbackPreview({ conversionMethod, postback }: Props) {
   &conversiontype={event→code}        ← e.g. viewcontent=1, fallback=${fallback}
   &conversionprice={conversion.revenue}
   &includeintotalconversion=1`}</CodeBlock>
-        <p className="text-xs text-zinc-500">
-          Mediago docs may also use <code className="bg-zinc-100 px-1">accountname</code> — not
+        <p className={`text-xs ${mutedTextClass}`}>
+          Mediago docs may also use <code className={inlineCodeClass}>accountname</code> — not
           wired yet; tell us your account name to add it. Reference:{' '}
           <a
             href="https://sync.mediago.io/api/bidder/postback"
-            className="text-indigo-600 hover:underline"
+            className={linkClass}
             target="_blank"
             rel="noreferrer"
           >
@@ -47,9 +47,9 @@ export function PostbackPreview({ conversionMethod, postback }: Props) {
         </p>
         <p>
           Status: {postback?.mediagoEnabled ? (
-            <span className="text-green-700 font-medium">Enabled</span>
+            <span className="text-green-700 dark:text-green-400 font-medium">Enabled</span>
           ) : (
-            <span className="text-red-600 font-medium">Disabled — enable in Postback config below</span>
+            <span className="text-red-600 dark:text-red-400 font-medium">Disabled — enable in Postback config below</span>
           )}
         </p>
       </div>
@@ -60,7 +60,7 @@ export function PostbackPreview({ conversionMethod, postback }: Props) {
     const pixel = postback?.facebookPixelId || 'YOUR_PIXEL_ID';
     const hasToken = !!postback?.facebookAccessToken;
     return (
-      <div className="space-y-3 text-sm text-zinc-600">
+      <div className={`space-y-3 text-sm ${bodyTextClass}`}>
         <p>
           Facebook uses <strong>Conversions API (CAPI)</strong>, not a simple GET URL. On conversion
           the tracker sends a <strong>POST</strong> to:
@@ -86,13 +86,13 @@ Body (JSON):
 }`}</CodeBlock>
         <p>
           You must configure: <strong>Pixel ID</strong> + <strong>Access Token</strong> (System User
-          token from Meta Business Manager with <code className="bg-zinc-100 px-1">ads_management</code>
+          token from Meta Business Manager with <code className={inlineCodeClass}>ads_management</code>
           ).
         </p>
         <p>
-          Pixel: {postback?.facebookPixelId || <span className="text-amber-600">not set</span>}
+          Pixel: {postback?.facebookPixelId || <span className="text-amber-600 dark:text-amber-400">not set</span>}
           <br />
-          Token: {hasToken ? <span className="text-green-700">configured</span> : <span className="text-red-600">missing</span>}
+          Token: {hasToken ? <span className="text-green-700 dark:text-green-400">configured</span> : <span className="text-red-600 dark:text-red-400">missing</span>}
           <br />
           Enabled: {postback?.facebookEnabled ? 'yes' : 'no'}
         </p>
@@ -104,7 +104,7 @@ Body (JSON):
     const convId = postback?.googleConversionId || 'AW-XXXXXXXX';
     const label = postback?.googleConversionLabel || 'YOUR_LABEL';
     return (
-      <div className="space-y-3 text-sm text-zinc-600">
+      <div className={`space-y-3 text-sm ${bodyTextClass}`}>
         <p>
           Google offline conversion uses the <strong>gclid</strong> captured on the click. On
           conversion the tracker sends a <strong>GET</strong>:
@@ -120,9 +120,9 @@ Body (JSON):
           Google Ads → Goals → Conversions → Tag setup.
         </p>
         <p>
-          Conversion ID: {postback?.googleConversionId || <span className="text-amber-600">not set</span>}
+          Conversion ID: {postback?.googleConversionId || <span className="text-amber-600 dark:text-amber-400">not set</span>}
           <br />
-          Label: {postback?.googleConversionLabel || <span className="text-amber-600">not set</span>}
+          Label: {postback?.googleConversionLabel || <span className="text-amber-600 dark:text-amber-400">not set</span>}
           <br />
           Enabled: {postback?.googleEnabled ? 'yes' : 'no'}
         </p>
@@ -132,12 +132,12 @@ Body (JSON):
 
   if (method === 'outbrain_s2s') {
     return (
-      <div className="space-y-3 text-sm text-zinc-600">
+      <div className={`space-y-3 text-sm ${bodyTextClass}`}>
         <p>Outbrain S2S GET with tracking_id from the click URL.</p>
         <CodeBlock>{`GET https://tr.outbrain.com/pixel?ob_click_id={click.trackingId}&marketerId=YOUR_ID`}</CodeBlock>
       </div>
     );
   }
 
-  return <p className="text-sm text-zinc-500">No outbound postback for this traffic source.</p>;
+  return <p className={`text-sm ${mutedTextClass}`}>No outbound postback for this traffic source.</p>;
 }

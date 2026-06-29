@@ -1,6 +1,7 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
+import { GlobalExceptionFilter } from './common/filters/global-exception.filter';
 import { PrismaExceptionFilter } from './common/filters/prisma-exception.filter';
 
 async function bootstrap() {
@@ -8,7 +9,7 @@ async function bootstrap() {
 
   app.getHttpAdapter().getInstance().set('trust proxy', true);
 
-  app.useGlobalFilters(new PrismaExceptionFilter());
+  app.useGlobalFilters(new GlobalExceptionFilter(), new PrismaExceptionFilter());
 
   app.useGlobalPipes(
     new ValidationPipe({

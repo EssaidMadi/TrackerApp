@@ -3,29 +3,37 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { Loading, PageHeader } from '@/components/ui';
+import { Alert, Loading, PageHeader, linkClass, mutedTextClass } from '@/components/ui';
 import { TrafficSourceEditor } from '@/components/TrafficSourceEditor';
-import { trackerApi, type TrafficSourceProfile } from '@/lib/api';
+import { trackerApi, formatApiError, type TrafficSourceProfile } from '@/lib/api';
 
 export default function EditTrafficSourcePage() {
   const { id } = useParams<{ id: string }>();
   const [profile, setProfile] = useState<TrafficSourceProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     trackerApi
       .getTrafficSource(id)
-      .then(setProfile)
-      .catch(console.error)
+      .then((data) => {
+        setProfile(data);
+        setError(null);
+      })
+      .catch((err) => {
+        console.error(err);
+        setError(formatApiError(err));
+      })
       .finally(() => setLoading(false));
   }, [id]);
 
   if (loading) return <Loading />;
-  if (!profile) return <p className="text-sm text-zinc-500">Profile not found.</p>;
+  if (error) return <Alert tone="error">{error}</Alert>;
+  if (!profile) return <p className={`text-sm ${mutedTextClass}`}>Profile not found.</p>;
 
   return (
     <div>
-      <Link href="/traffic-sources" className="text-sm text-indigo-600 hover:underline mb-6 inline-block">
+      <Link href="/traffic-sources" className={`text-sm ${linkClass} mb-6 inline-block`}>
         ← Back to traffic sources
       </Link>
       <PageHeader title={profile.name} description={`Slug: ${profile.slug}`} />

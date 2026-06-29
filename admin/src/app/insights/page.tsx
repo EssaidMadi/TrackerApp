@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import {
+  Alert,
   Button,
   DataTable,
   EmptyState,
@@ -13,10 +14,12 @@ import {
   TableHead,
   Td,
   Th,
+  sectionHeadingClass,
+  tableRowClass,
 } from '@/components/ui';
 import { DateRangePicker, buildPresets, type DateRange } from '@/components/DateRangePicker';
 import { ExcludeBotsToggle } from '@/components/ExcludeBotsToggle';
-import { trackerApi, type Campaign, type ProfitabilityReport } from '@/lib/api';
+import { trackerApi, formatApiError, type Campaign, type ProfitabilityReport } from '@/lib/api';
 
 export default function InsightsPage() {
   const [range, setRange] = useState<DateRange>(buildPresets()[2]);
@@ -26,6 +29,7 @@ export default function InsightsPage() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [report, setReport] = useState<ProfitabilityReport | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -39,8 +43,14 @@ export default function InsightsPage() {
     };
     trackerApi
       .getProfitability(params)
-      .then(setReport)
-      .catch(console.error)
+      .then((data) => {
+        setReport(data);
+        setError(null);
+      })
+      .catch((err) => {
+        console.error(err);
+        setError(formatApiError(err));
+      })
       .finally(() => setLoading(false));
   }, [range, campaignId, dimension, excludeBots]);
 
@@ -66,6 +76,12 @@ export default function InsightsPage() {
         <ExcludeBotsToggle value={excludeBots} onChange={setExcludeBots} />
         <Button size="sm" variant="secondary" onClick={load}>Refresh</Button>
       </div>
+
+      {error && (
+        <div className="mb-6">
+          <Alert tone="error">{error}</Alert>
+        </div>
+      )}
 
       <FilterBar>
         <Select value={campaignId} onChange={(e) => setCampaignId(e.target.value)} className="min-w-[200px]">
@@ -106,17 +122,17 @@ export default function InsightsPage() {
             {report?.rows.map((r) => (
               <tr
                 key={r.key}
-                className={`border-b border-zinc-50 hover:bg-zinc-50/50 ${
-                  r.profit < 0 && r.spend >= 5 ? 'bg-red-50/40' : r.roi > 20 ? 'bg-green-50/40' : ''
+                className={`${tableRowClass} ${
+                  r.profit < 0 && r.spend >= 5 ? 'bg-red-50/40 dark:bg-red-950/20' : r.roi > 20 ? 'bg-green-50/40 dark:bg-green-950/20' : ''
                 }`}
               >
-                <Td className="font-medium">{r.label}</Td>
+                <Td className={`font-medium ${sectionHeadingClass}`}>{r.label}</Td>
                 <Td>{r.visits}</Td>
                 <Td>{r.events}</Td>
                 <Td>{r.cr}%</Td>
                 <Td>${r.spend.toFixed(2)}</Td>
                 <Td>${r.revenue.toFixed(2)}</Td>
-                <Td className={r.profit < 0 ? 'text-red-600 font-medium' : 'text-green-700'}>
+                <Td className={r.profit < 0 ? 'text-red-600 dark:text-red-400 font-medium' : 'text-green-700 dark:text-green-400'}>
                   ${r.profit.toFixed(2)}
                 </Td>
                 <Td>{r.roi.toFixed(1)}%</Td>

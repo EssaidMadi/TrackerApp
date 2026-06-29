@@ -19,9 +19,13 @@ import {
   TableHead,
   Td,
   Th,
+  linkClass,
+  mutedTextClass,
+  sectionHeadingClass,
   statusTone,
+  tableRowClass,
 } from '@/components/ui';
-import { trackerApi, type Campaign, type TrackingDomain, type TrafficSourceProfile } from '@/lib/api';
+import { trackerApi, formatApiError, type Campaign, type TrackingDomain, type TrafficSourceProfile } from '@/lib/api';
 
 export default function CampaignsPage() {
   const toast = useToast();
@@ -29,6 +33,7 @@ export default function CampaignsPage() {
   const [domains, setDomains] = useState<TrackingDomain[]>([]);
   const [profiles, setProfiles] = useState<TrafficSourceProfile[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const [form, setForm] = useState({
@@ -41,19 +46,49 @@ export default function CampaignsPage() {
     destinationUrl: '',
   });
 
-  const load = () => {
+  useEffect(() => {
+    let cancelled = false;
+
+    const load = () => {
+      setLoading(true);
+      trackerApi
+        .getCampaigns()
+        .then((data) => {
+          if (!cancelled) {
+            setCampaigns(data);
+            setError(null);
+          }
+        })
+        .catch((err) => {
+          console.error(err);
+          if (!cancelled) setError(formatApiError(err));
+        })
+        .finally(() => {
+          if (!cancelled) setLoading(false);
+        });
+    };
+
+    load();
+    trackerApi.getDomains().then((d) => { if (!cancelled) setDomains(d); }).catch(console.error);
+    trackerApi.getTrafficSources().then((p) => { if (!cancelled) setProfiles(p); }).catch(console.error);
+
+    return () => { cancelled = true; };
+  }, []);
+
+  const reload = () => {
+    setLoading(true);
     trackerApi
       .getCampaigns()
-      .then(setCampaigns)
-      .catch(console.error)
+      .then((data) => {
+        setCampaigns(data);
+        setError(null);
+      })
+      .catch((err) => {
+        console.error(err);
+        setError(formatApiError(err));
+      })
       .finally(() => setLoading(false));
   };
-
-  useEffect(() => {
-    load();
-    trackerApi.getDomains().then(setDomains).catch(console.error);
-    trackerApi.getTrafficSources().then(setProfiles).catch(console.error);
-  }, []);
 
   const selectedProfile = profiles.find((p) => p.id === form.trafficSourceProfileId);
 
@@ -88,9 +123,9 @@ export default function CampaignsPage() {
         domainId: '',
         destinationUrl: '',
       });
-      load();
+      reload();
     } catch (err) {
-      toast.error(String(err));
+      toast.error(formatApiError(err));
     }
   };
 
@@ -98,9 +133,9 @@ export default function CampaignsPage() {
     setTogglingId(c.id);
     try {
       await trackerApi.updateCampaign(c.id, { active: !c.active });
-      load();
+      reload();
     } catch (err) {
-      toast.error(String(err));
+      toast.error(formatApiError(err));
     } finally {
       setTogglingId(null);
     }
@@ -125,6 +160,12 @@ export default function CampaignsPage() {
         }
         meta={<Badge tone="neutral">{campaigns.length} total</Badge>}
       />
+
+      {error && (
+        <div className="mb-6">
+          <Alert tone="error">{error}</Alert>
+        </div>
+      )}
 
       {showForm && (
         <Card className="mb-8">
@@ -178,7 +219,7 @@ export default function CampaignsPage() {
                 {selectedProfile && (
                   <Link
                     href={`/traffic-sources/${selectedProfile.id}`}
-                    className="text-xs text-indigo-600 hover:underline mt-1 inline-block"
+                    className={`text-xs ${linkClass} mt-1 inline-block`}
                   >
                     Edit profile mappings →
                   </Link>
@@ -212,7 +253,7 @@ export default function CampaignsPage() {
                 ))}
               </Select>
               {verifiedDomains.length === 0 && (
-                <p className="text-xs text-amber-600 mt-1.5">
+                <p className="text-xs text-amber-600 dark:text-amber-400 mt-1.5">
                   No verified domains — <Link href="/domains" className="underline">add one</Link>
                 </p>
               )}
@@ -230,7 +271,7 @@ export default function CampaignsPage() {
 
             {helpNote && (
               <Alert tone="info">
-                <p className="text-indigo-800/90">{helpNote}</p>
+                <p>{helpNote}</p>
               </Alert>
             )}
 
@@ -257,16 +298,16 @@ export default function CampaignsPage() {
           </TableHead>
           <tbody>
             {campaigns.map((c) => (
-              <tr key={c.id} className="border-b border-zinc-50 last:border-0 hover:bg-zinc-50/50">
+              <tr key={c.id} className={tableRowClass}>
                 <Td>
-                  <span className="font-medium text-zinc-900">{c.name}</span>
+                  <span className={`font-medium ${sectionHeadingClass}`}>{c.name}</span>
                 </Td>
                 <Td>
                   <span className="capitalize">
                     {c.trafficSourceProfile?.name || c.trafficSource}
                   </span>
                   {c.domain && (
-                    <p className="text-xs font-mono text-zinc-400 mt-0.5">{c.domain.hostname}</p>
+                    <p className={`text-xs font-mono ${mutedTextClass} mt-0.5`}>{c.domain.hostname}</p>
                   )}
                 </Td>
                 <Td>
@@ -287,10 +328,7 @@ export default function CampaignsPage() {
                     >
                       {togglingId === c.id ? '...' : c.active ? 'Stop' : 'Enable'}
                     </Button>
-                    <Link
-                      href={`/campaigns/${c.id}`}
-                      className="text-sm text-indigo-600 hover:text-indigo-800 font-medium"
-                    >
+                    <Link href={`/campaigns/${c.id}`} className={`text-sm ${linkClass} font-medium`}>
                       Edit
                     </Link>
                   </div>

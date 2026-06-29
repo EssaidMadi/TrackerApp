@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import {
+  Alert,
   Badge,
   Button,
   Card,
@@ -15,11 +16,15 @@ import {
   TableHead,
   Td,
   Th,
+  mutedTextClass,
+  sectionHeadingClass,
+  tableRowClass,
 } from '@/components/ui';
 import { DateRangePicker, buildPresets, type DateRange } from '@/components/DateRangePicker';
 import { ExcludeBotsToggle } from '@/components/ExcludeBotsToggle';
 import {
   trackerApi,
+  formatApiError,
   type Campaign,
   type CreativePerformanceRow,
   type CreativePairRow,
@@ -79,6 +84,7 @@ export default function PerformancePage() {
   const [summary, setSummary] = useState<VisitSummary | null>(null);
   const [report, setReport] = useState<CreativeReport | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const params = {
     from: range.from,
@@ -94,16 +100,22 @@ export default function PerformancePage() {
     Promise.all([
       trackerApi.getVisitSummary(params),
       trackerApi.getCreativeReport(params),
-      trackerApi.getCampaigns(),
     ])
-      .then(([sum, creative, camps]) => {
+      .then(([sum, creative]) => {
         setSummary(sum);
         setReport(creative);
-        setCampaigns(camps);
+        setError(null);
       })
-      .catch(console.error)
+      .catch((err) => {
+        console.error(err);
+        setError(formatApiError(err));
+      })
       .finally(() => setLoading(false));
   }, [range, campaignId, eventType, countMode, excludeBots]);
+
+  useEffect(() => {
+    trackerApi.getCampaigns().then(setCampaigns).catch(console.error);
+  }, []);
 
   useEffect(() => {
     load();
@@ -125,6 +137,12 @@ export default function PerformancePage() {
         <DateRangePicker value={range} onChange={setRange} />
         <ExcludeBotsToggle value={excludeBots} onChange={setExcludeBots} />
       </div>
+
+      {error && (
+        <div className="mb-6">
+          <Alert tone="error">{error}</Alert>
+        </div>
+      )}
 
       <FilterBar>
         <Select
@@ -163,16 +181,18 @@ export default function PerformancePage() {
       </FilterBar>
 
       {report && report.selectedEvent.totalEvents === 0 && report.summary.totalVisits > 0 && (
-        <Card className="mb-6 border-amber-200 bg-amber-50">
-          <p className="text-sm font-medium text-amber-900">
+        <div className="mb-6">
+          <Alert tone="warning">
+          <p className="text-sm font-medium">
             No {report.selectedEvent.label} events in this period
           </p>
-          <p className="text-xs text-amber-800 mt-1">
+          <p className="text-xs mt-1 opacity-90">
             {countMode === 'sent'
               ? 'No postbacks marked "sent" for this event. Switch to Recorded mode, or check Mediago postback config on the LP Funnel page.'
               : 'No events recorded in the database. Check the LP Funnel page and verify trackCallClick / registerConversion fire on your landing page.'}
           </p>
-        </Card>
+          </Alert>
+        </div>
       )}
 
       {summary && report && (
@@ -202,11 +222,13 @@ export default function PerformancePage() {
       )}
 
       {report && report.summary.totalSpend === 0 && report.summary.totalVisits > 0 && (
-        <Card className="mb-6 border-zinc-200 bg-zinc-50">
-          <p className="text-xs text-zinc-600">
-            No campaign spend synced for this period. Import spend via Integrations or select a campaign with Mediago sync.
-          </p>
-        </Card>
+        <div className="mb-6">
+          <Alert tone="info">
+            <p className="text-xs">
+              No campaign spend synced for this period. Import spend via Integrations or select a campaign with Mediago sync.
+            </p>
+          </Alert>
+        </div>
       )}
 
       <div className="flex flex-wrap gap-2 mb-6">
@@ -292,7 +314,7 @@ function DashboardTab({ report }: { report: CreativeReport }) {
   return (
     <div className="space-y-6">
       <section>
-        <h2 className="text-sm font-semibold text-zinc-900 mb-3">Recommendations</h2>
+        <h2 className={`${sectionHeadingClass} mb-3`}>Recommendations</h2>
         {report.recommendations.length === 0 ? (
           <Card>
             <p className="text-sm text-zinc-500">No recommendations yet — need more traffic per creative.</p>
@@ -322,9 +344,9 @@ function RecommendationCard({ rec }: { rec: CreativeRecommendation }) {
         <Badge tone={SEV_TONE[rec.severity]}>{rec.category}</Badge>
         {rec.metric && <span className="text-xs font-mono text-zinc-500">{rec.metric}</span>}
       </div>
-      <h3 className="font-medium text-zinc-900 text-sm">{rec.title}</h3>
-      <p className="text-sm text-zinc-600 mt-1">{rec.message}</p>
-      <p className="text-xs text-indigo-700 mt-2 font-medium">→ {rec.action}</p>
+      <h3 className={`font-medium text-zinc-900 dark:text-zinc-50 text-sm`}>{rec.title}</h3>
+      <p className={`text-sm text-zinc-600 dark:text-zinc-300 mt-1`}>{rec.message}</p>
+      <p className="text-xs text-indigo-700 dark:text-indigo-400 mt-2 font-medium">→ {rec.action}</p>
     </Card>
   );
 }
@@ -340,14 +362,14 @@ function TopList({
 }) {
   return (
     <Card>
-      <h3 className="text-sm font-semibold text-zinc-900 mb-3">{title}</h3>
+      <h3 className={`${sectionHeadingClass} mb-3`}>{title}</h3>
       {rows.length === 0 ? (
         <p className="text-xs text-zinc-400">No data</p>
       ) : (
         <ul className="space-y-2">
           {rows.map((r) => (
             <li key={r.key} className="text-xs flex justify-between gap-2">
-              <span className="truncate text-zinc-700" title={r.label}>
+              <span className={`truncate text-zinc-700 dark:text-zinc-300`} title={r.label}>
                 {isCombo && 'headlineLabel' in r
                   ? `${(r as CreativePairRow).imageLabel} + ${(r as CreativePairRow).headlineLabel}`
                   : r.label}
@@ -378,8 +400,8 @@ function CreativeTable({
 }) {
   return (
     <div>
-      <h2 className="text-sm font-semibold text-zinc-900">{title}</h2>
-      <p className="text-xs text-zinc-500 mb-3">{subtitle}</p>
+      <h2 className={sectionHeadingClass}>{title}</h2>
+      <p className={`text-xs ${mutedTextClass} mb-3`}>{subtitle}</p>
       <DataTable>
         <table className="w-full text-xs">
           <TableHead>
@@ -398,7 +420,7 @@ function CreativeTable({
           </TableHead>
           <tbody>
             {rows.map((r) => (
-              <tr key={r.key} className="border-b border-zinc-50 hover:bg-zinc-50/50">
+              <tr key={r.key} className={tableRowClass}>
                 <Td className="max-w-[200px] truncate font-medium">
                   <span title={r.label}>{r.label}</span>
                 </Td>
@@ -414,7 +436,7 @@ function CreativeTable({
                 <Td>{r.spend > 0 ? `$${r.cpv.toFixed(3)}` : '—'}</Td>
                 <Td>{r.conversions > 0 && r.spend > 0 ? `$${r.costPerEvent.toFixed(2)}` : '—'}</Td>
                 <Td>
-                  <span className={parseFloat(r.botPct) >= 30 ? 'text-red-600 font-medium' : ''}>
+                  <span className={parseFloat(r.botPct) >= 30 ? 'text-red-600 dark:text-red-400 font-medium' : ''}>
                     {r.botPct}%
                   </span>
                 </Td>
@@ -444,8 +466,8 @@ function ComboTable({
 }) {
   return (
     <div>
-      <h2 className="text-sm font-semibold text-zinc-900">Image × Headline combinations</h2>
-      <p className="text-xs text-zinc-500 mb-3">
+      <h2 className={sectionHeadingClass}>Image × Headline combinations</h2>
+      <p className={`text-xs ${mutedTextClass} mb-3`}>
         Each row is a unique image + headline pair — use this to see which combo performs best for the selected event.
       </p>
       <DataTable>
@@ -465,7 +487,7 @@ function ComboTable({
           </TableHead>
           <tbody>
             {pairs.map((r) => (
-              <tr key={r.key} className="border-b border-zinc-50 hover:bg-zinc-50/50">
+              <tr key={r.key} className={tableRowClass}>
                 <Td className="max-w-[140px] truncate">
                   <span title={r.imageLabel}>{r.imageLabel}</span>
                 </Td>
@@ -479,7 +501,7 @@ function ComboTable({
                 <Td>{r.spend > 0 ? `$${r.cpv.toFixed(3)}` : '—'}</Td>
                 <Td>{r.conversions > 0 && r.spend > 0 ? `$${r.costPerEvent.toFixed(2)}` : '—'}</Td>
                 <Td>
-                  <span className={parseFloat(r.botPct) >= 30 ? 'text-red-600 font-medium' : ''}>
+                  <span className={parseFloat(r.botPct) >= 30 ? 'text-red-600 dark:text-red-400 font-medium' : ''}>
                     {r.botPct}%
                   </span>
                 </Td>

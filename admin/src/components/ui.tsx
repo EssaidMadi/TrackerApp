@@ -1,4 +1,5 @@
 import type {
+  AnchorHTMLAttributes,
   ButtonHTMLAttributes,
   InputHTMLAttributes,
   LabelHTMLAttributes,
@@ -9,6 +10,18 @@ import type {
 
 const focusRing =
   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--ring-offset)]';
+
+/** Shared class tokens — use instead of hardcoded light-only colors */
+export const tableRowClass = 'border-b border-zinc-100 dark:border-zinc-800';
+export const sectionHeadingClass = 'text-sm font-semibold text-zinc-900 dark:text-zinc-50';
+export const pageTitleClass = 'text-xl font-semibold text-zinc-900 dark:text-zinc-50';
+export const linkClass = 'text-indigo-600 dark:text-indigo-400 hover:underline';
+export const mutedTextClass = 'text-zinc-500 dark:text-zinc-400';
+export const bodyTextClass = 'text-zinc-700 dark:text-zinc-300';
+export const detailRowClass =
+  'bg-zinc-50/80 dark:bg-zinc-800/40 border-b border-zinc-100 dark:border-zinc-800';
+export const inlineCodeClass =
+  'bg-zinc-100 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 px-1.5 py-0.5 rounded-md text-xs font-mono';
 
 export type StatCardTone =
   | 'neutral'
@@ -238,6 +251,92 @@ export function CodeBlock({ children }: { children: string }) {
     <code className="block bg-zinc-950 text-zinc-100 p-4 rounded-xl text-xs break-all font-mono leading-relaxed border border-zinc-800">
       {children}
     </code>
+  );
+}
+
+export function PreBlock({ children, className = '' }: { children: ReactNode; className?: string }) {
+  return (
+    <pre
+      className={`text-xs bg-zinc-50 dark:bg-zinc-900/80 text-zinc-800 dark:text-zinc-200 p-4 rounded-xl overflow-x-auto border border-zinc-200/80 dark:border-zinc-800 font-mono leading-relaxed ${className}`}
+    >
+      {children}
+    </pre>
+  );
+}
+
+export function Checkbox({
+  label,
+  checked,
+  onChange,
+  id,
+  className = '',
+}: {
+  label?: ReactNode;
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+  id?: string;
+  className?: string;
+}) {
+  const inputId = id || (typeof label === 'string' ? label.replace(/\s+/g, '-').toLowerCase() : undefined);
+  return (
+    <label className={`inline-flex items-center gap-2 cursor-pointer text-sm text-zinc-700 dark:text-zinc-300 ${className}`}>
+      <input
+        type="checkbox"
+        id={inputId}
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+        className="rounded border-zinc-300 dark:border-zinc-600 text-indigo-600 focus:ring-indigo-500/40 dark:bg-zinc-900"
+      />
+      {label}
+    </label>
+  );
+}
+
+export function InlineLink({
+  href,
+  children,
+  className = '',
+  ...props
+}: AnchorHTMLAttributes<HTMLAnchorElement>) {
+  return (
+    <a href={href} className={`${linkClass} ${className}`} {...props}>
+      {children}
+    </a>
+  );
+}
+
+export function SortTh({
+  children,
+  active,
+  direction,
+  onClick,
+  className = '',
+}: {
+  children?: ReactNode;
+  active?: boolean;
+  direction?: 'asc' | 'desc';
+  onClick?: () => void;
+  className?: string;
+}) {
+  return (
+    <th className={`text-left px-5 py-3.5 text-[11px] font-semibold uppercase tracking-wider ${className}`}>
+      <button
+        type="button"
+        onClick={onClick}
+        className={`inline-flex items-center gap-1 transition-colors ${focusRing} ${
+          active
+            ? 'text-zinc-700 dark:text-zinc-200'
+            : 'text-zinc-400 dark:text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-200'
+        }`}
+      >
+        {children}
+        {active && (
+          <span aria-hidden className="text-[10px]">
+            {direction === 'desc' ? '↓' : '↑'}
+          </span>
+        )}
+      </button>
+    </th>
   );
 }
 

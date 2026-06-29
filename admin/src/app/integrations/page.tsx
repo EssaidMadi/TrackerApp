@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useToast } from '@/components/Toast';
 import {
+  Alert,
   Button,
   Card,
   Input,
@@ -11,9 +12,14 @@ import {
   PageHeader,
   Select,
   Textarea,
+  inlineCodeClass,
+  linkClass,
+  mutedTextClass,
+  sectionHeadingClass,
 } from '@/components/ui';
 import {
   trackerApi,
+  formatApiError,
   type Campaign,
   type CampaignPlatformMapping,
   type PlatformConnection,
@@ -44,6 +50,7 @@ export default function IntegrationsPage() {
   const [mappings, setMappings] = useState<CampaignPlatformMapping[]>([]);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
 
   const [connForm, setConnForm] = useState({
@@ -98,8 +105,12 @@ export default function IntegrationsPage() {
         setConnections(c);
         setMappings(m);
         setCampaigns(camps);
+        setError(null);
       })
-      .catch(console.error)
+      .catch((err) => {
+        console.error(err);
+        setError(formatApiError(err));
+      })
       .finally(() => setLoading(false));
   };
 
@@ -162,7 +173,7 @@ export default function IntegrationsPage() {
       }
       load();
     } catch (err) {
-      toast.error(String(err));
+      toast.error(formatApiError(err));
     }
   };
 
@@ -181,7 +192,7 @@ export default function IntegrationsPage() {
       const list = await trackerApi.getMediagoCampaigns(connectionId);
       setMediagoCampaigns(list);
     } catch (err) {
-      toast.error(String(err));
+      toast.error(formatApiError(err));
     }
   };
 
@@ -190,7 +201,7 @@ export default function IntegrationsPage() {
       await trackerApi.createCampaignMapping(mapForm);
       load();
     } catch (err) {
-      toast.error(String(err));
+      toast.error(formatApiError(err));
     }
   };
 
@@ -201,7 +212,7 @@ export default function IntegrationsPage() {
       toast.success(`Synced ${res.synced} spend rows`);
       load();
     } catch (err) {
-      toast.error(String(err));
+      toast.error(formatApiError(err));
     } finally {
       setSyncing(false);
     }
@@ -219,7 +230,7 @@ export default function IntegrationsPage() {
       });
       toast.success('Spend saved');
     } catch (err) {
-      toast.error(String(err));
+      toast.error(formatApiError(err));
     }
   };
 
@@ -228,7 +239,7 @@ export default function IntegrationsPage() {
       const res = await trackerApi.importSpendCsv(csvText);
       toast.success(`Imported ${res.imported} rows`);
     } catch (err) {
-      toast.error(String(err));
+      toast.error(formatApiError(err));
     }
   };
 
@@ -248,8 +259,14 @@ export default function IntegrationsPage() {
         }
       />
 
+      {error && (
+        <div className="mb-6">
+          <Alert tone="error">{error}</Alert>
+        </div>
+      )}
+
       <Card className="space-y-4 max-w-2xl">
-        <h2 className="font-semibold">Add platform connection</h2>
+        <h2 className={sectionHeadingClass}>Add platform connection</h2>
         <div className="grid grid-cols-2 gap-3">
           <div>
             <Label>Platform</Label>
@@ -278,7 +295,7 @@ export default function IntegrationsPage() {
 
         {isMediago ? (
           <>
-            <p className="text-xs text-zinc-500">
+            <p className={`text-xs ${mutedTextClass}`}>
               Paste the token from Mediago dashboard. Use the <strong>Base64-encoded</strong> token
               first; raw token is optional fallback.
             </p>
@@ -378,25 +395,25 @@ export default function IntegrationsPage() {
       </Card>
 
       <Card>
-        <h2 className="font-semibold mb-3">Connections</h2>
+        <h2 className={`${sectionHeadingClass} mb-3`}>Connections</h2>
         <ul className="space-y-2 text-sm">
           {connections.map((c) => (
             <li
               key={c.id}
-              className="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-100 py-2"
+              className="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-100 dark:border-zinc-800 py-2"
             >
               <span>
                 <strong>{c.label}</strong> ({c.platform}) — {c.status}
                 {c.accountId && (
-                  <span className="text-zinc-400 ml-2">account {c.accountId}</span>
+                  <span className={`${mutedTextClass} ml-2`}>account {c.accountId}</span>
                 )}
                 {c.lastSyncAt && (
-                  <span className="text-zinc-400 ml-2">
+                  <span className={`${mutedTextClass} ml-2`}>
                     last sync {new Date(c.lastSyncAt).toLocaleString()}
                   </span>
                 )}
                 {c.lastError && (
-                  <span className="text-red-500 ml-2 block text-xs">{c.lastError}</span>
+                  <span className="text-red-500 dark:text-red-400 ml-2 block text-xs">{c.lastError}</span>
                 )}
               </span>
               <div className="flex flex-wrap gap-2">
@@ -464,14 +481,14 @@ export default function IntegrationsPage() {
             </li>
           ))}
           {connections.length === 0 && (
-            <p className="text-zinc-400">No connections yet. Add credentials above.</p>
+            <p className={mutedTextClass}>No connections yet. Add credentials above.</p>
           )}
         </ul>
       </Card>
 
       {mediagoCampaigns.length > 0 && (
         <Card className="space-y-3 max-w-3xl">
-          <h2 className="font-semibold">Mediago campaigns (from API)</h2>
+          <h2 className={sectionHeadingClass}>Mediago campaigns (from API)</h2>
           <p className="text-xs text-zinc-500">
             Click a row to fill the mapping form. Auto-map matches by campaign name / slug.
           </p>
@@ -480,7 +497,7 @@ export default function IntegrationsPage() {
               <li key={mc.campaignId}>
                 <button
                   type="button"
-                  className="text-left hover:text-indigo-600 w-full"
+                  className={`text-left ${linkClass} w-full`}
                   onClick={() =>
                     setMapForm({
                       campaignId: mapForm.campaignId,
@@ -498,7 +515,7 @@ export default function IntegrationsPage() {
       )}
 
       <Card className="space-y-4 max-w-2xl">
-        <h2 className="font-semibold">Campaign ID mapping</h2>
+        <h2 className={sectionHeadingClass}>Campaign ID mapping</h2>
         <p className="text-xs text-zinc-500">
           Link tracker campaign to Mediago campaign ID for spend sync. Use Auto-map on a Mediago
           connection to match existing tracker campaigns by name.
@@ -552,11 +569,11 @@ export default function IntegrationsPage() {
 
       {mediagoAccounts.length > 0 && (
         <Card className="max-w-2xl">
-          <h2 className="font-semibold mb-2">Mediago accounts on token</h2>
+          <h2 className={`${sectionHeadingClass} mb-2`}>Mediago accounts on token</h2>
           <ul className="text-sm space-y-1">
             {mediagoAccounts.map((a) => (
               <li key={a.accountId}>
-                {a.accountName} — <code>{a.accountId}</code>
+                {a.accountName} — <code className={inlineCodeClass}>{a.accountId}</code>
               </li>
             ))}
           </ul>
@@ -564,7 +581,7 @@ export default function IntegrationsPage() {
       )}
 
       <Card className="space-y-4 max-w-2xl">
-        <h2 className="font-semibold">Manual spend entry</h2>
+        <h2 className={sectionHeadingClass}>Manual spend entry</h2>
         <div className="grid grid-cols-2 gap-3">
           <div>
             <Label>Campaign</Label>
@@ -614,7 +631,7 @@ export default function IntegrationsPage() {
       </Card>
 
       <Card className="space-y-4 max-w-3xl">
-        <h2 className="font-semibold">Import spend CSV</h2>
+        <h2 className={sectionHeadingClass}>Import spend CSV</h2>
         <p className="text-xs text-zinc-500">
           Columns: date, campaign_slug, impressions, clicks, spend, platform
         </p>

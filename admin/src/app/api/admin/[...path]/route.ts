@@ -29,11 +29,19 @@ async function proxy(req: NextRequest, context: { params: Promise<{ path: string
       : await req.text()
     : undefined;
 
-  const upstream = await fetch(target.toString(), {
-    method: req.method,
-    headers,
-    body,
-  });
+  let upstream: Response;
+  try {
+    upstream = await fetch(target.toString(), {
+      method: req.method,
+      headers,
+      body,
+    });
+  } catch {
+    return Response.json(
+      { message: 'Tracker API unreachable. Is the backend running?' },
+      { status: 502 },
+    );
+  }
 
   const upstreamType = upstream.headers.get('content-type') || 'application/json';
   const isBinary =

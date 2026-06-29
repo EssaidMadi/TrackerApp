@@ -5,7 +5,7 @@ export default auth((req) => {
   const isLoggedIn = !!req.auth;
   const { pathname } = req.nextUrl;
 
-  if (pathname.startsWith('/api/auth')) {
+  if (pathname.startsWith('/api/auth') || pathname.startsWith('/api/admin')) {
     return NextResponse.next();
   }
 
